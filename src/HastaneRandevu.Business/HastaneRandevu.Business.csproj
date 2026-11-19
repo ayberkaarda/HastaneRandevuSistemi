@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Sessions can only be issued by AuthService; tests build them directly. -->
+    <InternalsVisibleTo Include="HastaneRandevu.Business.Tests" />
+    <InternalsVisibleTo Include="HastaneRandevu.Data.Tests" />
+    <InternalsVisibleTo Include="HastaneRandevu.UI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HastaneRandevu.Domain\HastaneRandevu.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.15" />
+  </ItemGroup>
+
+</Project>
