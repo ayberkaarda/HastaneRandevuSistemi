@@ -5,8 +5,6 @@ internal static class AppText
 {
     /// <summary>Neutral product name used in window titles and message boxes.</summary>
     public const string Title = "Hastane Randevu";
-
-    public static string WindowTitle(string screen) => $"{Title} - {screen}";
 }
 
 /// <summary>
