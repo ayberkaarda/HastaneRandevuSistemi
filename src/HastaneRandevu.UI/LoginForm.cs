@@ -43,6 +43,11 @@ namespace HastaneRandevu.UI
                     finally
                     {
                         textBoxSifre.Clear();
+                        if (session is null)
+                        {
+                            // Retyping the password is the next step after a refused attempt.
+                            _signIn.FocusAfterUnlock(textBoxSifre);
+                        }
                     }
                 },
                 buttonGiris,

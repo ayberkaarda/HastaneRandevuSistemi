@@ -40,6 +40,10 @@ namespace HastaneRandevu.UI
                     finally
                     {
                         textBoxSifre.Clear();
+                        if (session is null)
+                        {
+                            _signIn.FocusAfterUnlock(textBoxSifre);
+                        }
                     }
                 },
                 buttonGiris,

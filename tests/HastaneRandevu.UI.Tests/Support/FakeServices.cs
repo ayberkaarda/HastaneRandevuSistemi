@@ -1,3 +1,4 @@
+using HastaneRandevu.Business;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.UI.Infrastructure;
@@ -7,6 +8,9 @@ namespace HastaneRandevu.UI.Tests.Support;
 /// <summary>Sign-in and registration calls that stay pending until the test completes them.</summary>
 internal sealed class PendingAuthService : IAuthService
 {
+    private TaskCompletionSource<UserSession> _signIn = new();
+    private TaskCompletionSource _register = new();
+
     public int PatientSignInCalls { get; private set; }
 
     public int DoctorSignInCalls { get; private set; }
@@ -19,21 +23,30 @@ internal sealed class PendingAuthService : IAuthService
     {
         PatientSignInCalls++;
         LastSignInPassword = password;
-        return new TaskCompletionSource<UserSession>().Task;
+        _signIn = new TaskCompletionSource<UserSession>();
+        return _signIn.Task;
     }
 
     public Task<UserSession> SignInDoctorAsync(string? fullName, string? password, CancellationToken cancellationToken = default)
     {
         DoctorSignInCalls++;
         LastSignInPassword = password;
-        return new TaskCompletionSource<UserSession>().Task;
+        _signIn = new TaskCompletionSource<UserSession>();
+        return _signIn.Task;
     }
 
     public Task RegisterPatientAsync(string? fullName, string? nationalId, string? password, CancellationToken cancellationToken = default)
     {
         RegisterCalls++;
-        return new TaskCompletionSource().Task;
+        _register = new TaskCompletionSource();
+        return _register.Task;
     }
+
+    /// <summary>Refuses the pending sign-in as wrong credentials would.</summary>
+    public void RefuseSignIn() => _signIn.SetException(new BusinessRuleException("TC veya şifre hatalı."));
+
+    /// <summary>Completes the pending registration.</summary>
+    public void CompleteRegister() => _register.SetResult();
 }
 
 /// <summary>
