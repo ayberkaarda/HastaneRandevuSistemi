@@ -163,6 +163,56 @@ internal sealed class ControlledScheduleService : IScheduleService
     }
 }
 
+/// <summary>
+/// Availability service whose answers are given by the test, in any order: searches, first free slot
+/// requests and calendar requests are recorded with their pending answers.
+/// </summary>
+internal sealed class ControlledAvailabilityService : IAvailabilityService
+{
+    public List<string> Branches { get; } = ["Dahiliye", "Kardiyoloji"];
+
+    /// <summary>Doctors returned at once by searches while <see cref="HoldSearches"/> is false.</summary>
+    public List<DoctorSummary> Doctors { get; } = [new(1, "Dr. Ada Örnek", "Kardiyoloji"), new(2, "Dr. Can Deneme", "Dahiliye")];
+
+    /// <summary>When true, searches stay pending until the test answers them through <see cref="Searches"/>.</summary>
+    public bool HoldSearches { get; set; }
+
+    public List<(string? Name, string? Branch, TaskCompletionSource<IReadOnlyList<DoctorSummary>> Answer)> Searches { get; } = [];
+
+    public List<(int DoctorId, TaskCompletionSource<DateTime?> Answer)> FirstFree { get; } = [];
+
+    public List<(int DoctorId, DateOnly FirstDay, int Days, TaskCompletionSource<IReadOnlyList<CalendarDay>> Answer)> Calendars { get; } = [];
+
+    public Task<IReadOnlyList<DoctorSummary>> SearchDoctorsAsync(UserSession session, string? name, string? branch, CancellationToken cancellationToken = default)
+    {
+        var answer = new TaskCompletionSource<IReadOnlyList<DoctorSummary>>();
+        Searches.Add((name, branch, answer));
+        if (!HoldSearches)
+        {
+            answer.SetResult([.. Doctors]);
+        }
+
+        return answer.Task;
+    }
+
+    public Task<IReadOnlyList<string>> GetBranchesAsync(UserSession session, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<string>>(Branches);
+
+    public Task<IReadOnlyList<CalendarDay>> GetCalendarAsync(UserSession session, int doctorId, DateOnly firstDay, int days, CancellationToken cancellationToken = default)
+    {
+        var answer = new TaskCompletionSource<IReadOnlyList<CalendarDay>>();
+        Calendars.Add((doctorId, firstDay, days, answer));
+        return answer.Task;
+    }
+
+    public Task<DateTime?> FindFirstFreeSlotAsync(UserSession session, int doctorId, CancellationToken cancellationToken = default)
+    {
+        var answer = new TaskCompletionSource<DateTime?>();
+        FirstFree.Add((doctorId, answer));
+        return answer.Task;
+    }
+}
+
 /// <summary>Answers confirmations with yes and records every message instead of showing a dialog.</summary>
 internal sealed class RecordingPrompts : IUserPrompts
 {
