@@ -1,0 +1,320 @@
+using System.Text.RegularExpressions;
+using HastaneRandevu.Business;
+using HastaneRandevu.Business.Auditing;
+using HastaneRandevu.Business.Security;
+using HastaneRandevu.Business.Services;
+using HastaneRandevu.Domain.Entities;
+using HastaneRandevu.Domain.Repositories;
+using HastaneRandevu.UI.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HastaneRandevu.UI.Tests;
+
+/// <summary>What reaches the log file (KVKK). No window is created by these tests.</summary>
+public sealed partial class LoggingTests : IDisposable
+{
+    // Personal data as it can appear in a sign-in, a registration, an appointment or an exception message.
+    private const string NationalId = "10000000450";
+    private const string PatientName = "Deniz Örnek";
+    private const string Password = "Gizli.Sifre1";
+    private const string DoctorName = "Dr. Ada Örnek";
+    private const string Branch = "Kardiyoloji";
+
+    // Wednesday 5 March 2031, 10:10 UTC: the year cannot appear in a log timestamp written today.
+    private static readonly DateTimeOffset Now = new(2031, 3, 5, 10, 10, 0, TimeSpan.Zero);
+
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "hastanerandevu-log-test-" + Guid.NewGuid().ToString("N"));
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public void CreateLogger_WritesADailyFileInTheGivenDirectory()
+    {
+        using (var logger = AppLogging.CreateLogger(_directory))
+        {
+            logger.Information("probe");
+        }
+
+        var file = Assert.Single(Directory.GetFiles(_directory));
+        Assert.Matches(@"hastanerandevu-\d{8}\.log$", file);
+        Assert.Contains("probe", File.ReadAllText(file), StringComparison.Ordinal);
+        Assert.Equal(30, AppLogging.RetainedDays);
+    }
+
+    [Fact]
+    public void DefaultDirectory_IsUnderLocalApplicationData()
+    {
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+        Assert.StartsWith(root, AppLogging.DefaultDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("HastaneRandevu", "logs"), AppLogging.DefaultDirectory, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Record_UnexpectedError_KeepsTypesCodesAndMethodsButNoMessageOrPersonalData()
+    {
+        var exception = Throw(new InvalidOperationException(
+            $"Randevu kaydedilemedi: {PatientName} T.C. {NationalId} şifre {Password}",
+            new TimeoutException($"{DoctorName} {Branch} 05.03.2031 10:30")));
+
+        var text = WriteAndRead(logger => ErrorReporter.Record(logger, exception));
+
+        Assert.Contains("[ERR] Operation failed", text, StringComparison.Ordinal);
+        Assert.Contains(typeof(InvalidOperationException).FullName!, text, StringComparison.Ordinal);
+        Assert.Contains(typeof(TimeoutException).FullName!, text, StringComparison.Ordinal);
+        Assert.Contains("HResult 0x", text, StringComparison.Ordinal);
+        Assert.Contains(nameof(LoggingTests) + "." + nameof(Throw), text, StringComparison.Ordinal);
+        Assert.DoesNotContain(".cs", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Randevu kaydedilemedi", text, StringComparison.Ordinal);
+        AssertNoPersonalData(text);
+    }
+
+    [Fact]
+    public void Record_RefusedOperation_LogsTheTypeButNotTheMessage()
+    {
+        var text = WriteAndRead(logger =>
+        {
+            ErrorReporter.Record(logger, new BusinessRuleException($"{NationalId} {PatientName}"));
+            ErrorReporter.Record(logger, new AccessDeniedException($"{DoctorName} {Branch}"));
+        });
+
+        Assert.Contains("[WRN] Operation refused: BusinessRuleException", text, StringComparison.Ordinal);
+        Assert.Contains("[WRN] Operation refused: AccessDeniedException", text, StringComparison.Ordinal);
+        AssertNoPersonalData(text);
+    }
+
+    [Fact]
+    public void AuditLog_WritesOnlyTheCodeAndTheRole()
+    {
+        var text = WriteAndRead(logger =>
+        {
+            var audit = new SerilogAuditLog(logger);
+            foreach (var auditEvent in Enum.GetValues<AuditEvent>())
+            {
+                audit.Record(auditEvent, AccountRole.Patient);
+                audit.Record(auditEvent, AccountRole.Doctor);
+            }
+        });
+
+        Assert.Contains("[INF] Audit auth.account.locked patient", text, StringComparison.Ordinal);
+        Assert.Contains("[INF] Audit appointment.cancelled doctor", text, StringComparison.Ordinal);
+        Assert.All(Lines(text), line => Assert.Matches(AuditLine(), line));
+    }
+
+    [Fact]
+    public async Task FullSession_LeavesOnlyCodesAndTypesInTheLog()
+    {
+        using var logger = AppLogging.CreateLogger(_directory);
+        var accounts = new InMemoryAccounts();
+        var appointments = new InMemoryAppointments();
+        var services = new ServiceCollection()
+            .AddSingleton<IAuditLog>(new SerilogAuditLog(logger))
+            .AddSingleton<TimeProvider>(new FixedTime(Now))
+            .AddSingleton<IPasswordHasher>(new PasswordHasher(iterations: 1_000))
+            .AddSingleton<IAccountRepository>(accounts)
+            .AddSingleton<IPatientRepository>(accounts)
+            .AddSingleton<IDoctorRepository>(appointments)
+            .AddSingleton<IAppointmentRepository>(appointments)
+            .AddBusinessServices();
+        await using var provider = services.BuildServiceProvider();
+        var auth = provider.GetRequiredService<IAuthService>();
+        var booking = provider.GetRequiredService<IAppointmentService>();
+
+        async Task Attempt(Func<Task> action)
+        {
+            try
+            {
+                await action();
+            }
+#pragma warning disable CA1031 // Every failure goes to the log, as the forms do.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                ErrorReporter.Record(logger, ex);
+            }
+        }
+
+        await auth.RegisterPatientAsync(PatientName, NationalId, Password, Ct);
+        await Attempt(() => auth.RegisterPatientAsync(PatientName, NationalId, Password, Ct)); // taken
+        for (var i = 0; i < LoginPolicy.MaxFailedAttempts; i++)
+        {
+            await Attempt(() => auth.SignInPatientAsync(NationalId, "yanlis-" + Password, Ct));
+        }
+
+        await Attempt(() => auth.SignInPatientAsync(NationalId, Password, Ct)); // locked
+        accounts.Unlock();
+        var patient = await auth.SignInPatientAsync(NationalId, Password, Ct);
+        var start = new DateTime(2031, 3, 6, 10, 30, 0);
+        var id = await booking.BookAsync(patient, 1, start, Ct);
+        await Attempt(() => booking.BookAsync(patient, 1, start, Ct)); // slot taken
+        await Attempt(() => booking.CancelAsync(new UserSession(AccountRole.Patient, 99, "Başka", "***"), id, Ct)); // not owner
+        await booking.CancelAsync(patient, id, Ct);
+        logger.Dispose();
+
+        var text = File.ReadAllText(Assert.Single(Directory.GetFiles(_directory)));
+        Assert.Contains("Audit auth.patient.registered patient", text, StringComparison.Ordinal);
+        Assert.Equal(LoginPolicy.MaxFailedAttempts, Regex.Count(text, "Audit auth.sign_in.failed patient"));
+        Assert.Contains("Audit auth.account.locked patient", text, StringComparison.Ordinal);
+        Assert.Contains("Audit auth.sign_in.succeeded patient", text, StringComparison.Ordinal);
+        Assert.Contains("Audit appointment.booked patient", text, StringComparison.Ordinal);
+        Assert.Contains("Audit appointment.slot_taken patient", text, StringComparison.Ordinal);
+        Assert.Contains("Audit access.denied patient", text, StringComparison.Ordinal);
+        Assert.Contains("Audit appointment.cancelled patient", text, StringComparison.Ordinal);
+        Assert.All(Lines(text), line => Assert.Matches(AllowedLine(), line));
+        AssertNoPersonalData(text);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_directory))
+        {
+            Directory.Delete(_directory, recursive: true);
+        }
+    }
+
+    private static void AssertNoPersonalData(string text)
+    {
+        Assert.DoesNotContain(NationalId, text, StringComparison.Ordinal);
+        Assert.DoesNotContain(NationalId[..5], text, StringComparison.Ordinal); // not even a masked prefix
+        Assert.DoesNotContain("Deniz", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Örnek", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(Password, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sifre", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("şifre", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(Branch, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("2031", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PBKDF2", text, StringComparison.Ordinal);
+    }
+
+    private static string[] Lines(string text) =>
+        text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+    private const string Stamp = @"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2} ";
+
+    [GeneratedRegex(Stamp + @"\[INF\] Audit [a-z_]+(\.[a-z_]+)+ (patient|doctor)$")]
+    private static partial Regex AuditLine();
+
+    [GeneratedRegex(Stamp + @"(\[INF\] Audit [a-z_]+(\.[a-z_]+)+ (patient|doctor)|\[WRN\] Operation refused: (BusinessRuleException|AccessDeniedException))$")]
+    private static partial Regex AllowedLine();
+
+    private string WriteAndRead(Action<Serilog.ILogger> write)
+    {
+        using (var logger = AppLogging.CreateLogger(_directory))
+        {
+            write(logger);
+        }
+
+        return File.ReadAllText(Assert.Single(Directory.GetFiles(_directory)));
+    }
+
+    private static Exception Throw(Exception exception)
+    {
+        try
+        {
+            throw exception;
+        }
+#pragma warning disable CA1031 // Test helper captures the stack trace.
+        catch (Exception caught)
+#pragma warning restore CA1031
+        {
+            return caught;
+        }
+    }
+
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    }
+
+    /// <summary>One patient account with the lockout counter of the real repository.</summary>
+    private sealed class InMemoryAccounts : IAccountRepository, IPatientRepository
+    {
+        private Patient? _patient;
+
+        public void Unlock() => _patient!.LockoutEnd = null;
+
+        public Task<bool> NationalIdExistsAsync(string nationalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_patient?.NationalId == nationalId);
+
+        public Task<int> AddAsync(Patient patient, CancellationToken cancellationToken = default)
+        {
+            _patient = patient;
+            patient.Id = 1;
+            return Task.FromResult(1);
+        }
+
+        public Task<AccountCredentials?> FindPatientByNationalIdAsync(string nationalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_patient is { } p && p.NationalId == nationalId
+                ? new AccountCredentials(p.Id, p.FullName, p.NationalId, p.PasswordHash, p.PasswordFormat, p.FailedLoginCount, p.LockoutEnd)
+                : null);
+
+        public Task<AccountCredentials?> FindDoctorByNameAsync(string fullName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<AccountCredentials?>(null);
+
+        public Task RecordFailedLoginAsync(AccountRole role, int accountId, int maxAttempts, DateTime lockoutEnd, CancellationToken cancellationToken = default)
+        {
+            var p = _patient!;
+            if (p.FailedLoginCount + 1 >= maxAttempts)
+            {
+                p.LockoutEnd = lockoutEnd;
+                p.FailedLoginCount = 0;
+            }
+            else
+            {
+                p.FailedLoginCount++;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> RecordSuccessfulLoginAsync(AccountRole role, AccountCredentials verified, DateTime now, string? newPasswordHash, CancellationToken cancellationToken = default)
+        {
+            _patient!.FailedLoginCount = 0;
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <summary>One doctor and a list of appointments with the unique active slot rule.</summary>
+    private sealed class InMemoryAppointments : IAppointmentRepository, IDoctorRepository
+    {
+        private readonly List<Appointment> _rows = [];
+
+        public Task<IReadOnlyList<DoctorSummary>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<DoctorSummary>>([new DoctorSummary(1, DoctorName, Branch)]);
+
+        public Task<bool> ExistsAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult(id == 1);
+
+        public Task<IReadOnlyList<AppointmentDetails>> GetActiveForPatientAsync(int patientId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AppointmentDetails>>([]);
+
+        public Task<IReadOnlyList<AppointmentDetails>> GetActiveForDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AppointmentDetails>>([]);
+
+        public Task<IReadOnlyList<DateTime>> GetBookedStartsAsync(int doctorId, DateTime rangeStart, DateTime rangeEnd, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<DateTime>>([]);
+
+        public Task<Appointment?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_rows.SingleOrDefault(a => a.Id == id));
+
+        public Task<int> AddAsync(Appointment appointment, CancellationToken cancellationToken = default)
+        {
+            if (_rows.Any(a => a.DoctorId == appointment.DoctorId && a.StartsAt == appointment.StartsAt && a.Status == AppointmentStatus.Active))
+            {
+                return Task.FromException<int>(new SlotAlreadyBookedException($"{DoctorName} {appointment.StartsAt:O}"));
+            }
+
+            appointment.Id = _rows.Count + 1;
+            _rows.Add(appointment);
+            return Task.FromResult(appointment.Id);
+        }
+
+        public Task<bool> CancelAsync(int id, AccountRole ownerRole, int ownerId, DateTime startsAfter, DateTime cancelledAtUtc, CancellationToken cancellationToken = default)
+        {
+            var row = _rows.Single(a => a.Id == id);
+            row.Status = AppointmentStatus.Cancelled;
+            return Task.FromResult(true);
+        }
+    }
+}

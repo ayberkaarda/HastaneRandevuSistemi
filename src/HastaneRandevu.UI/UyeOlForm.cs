@@ -38,6 +38,7 @@ namespace HastaneRandevu.UI
                     textBoxTC.Clear();
                     textBoxSifre.Clear();
                     Prompts.Inform("Kayıt başarıyla eklendi!");
+                    _save.FocusAfterUnlock(textBoxIsim);
                 },
                 buttonKaydet);
 

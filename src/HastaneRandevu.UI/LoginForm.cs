@@ -43,6 +43,11 @@ namespace HastaneRandevu.UI
                     finally
                     {
                         textBoxSifre.Clear();
+                        if (session is null)
+                        {
+                            // Retyping the password is the next step after a refused attempt.
+                            _signIn.FocusAfterUnlock(textBoxSifre);
+                        }
                     }
                 },
                 buttonGiris,
@@ -73,7 +78,7 @@ namespace HastaneRandevu.UI
             var session = await SignInAsync();
             if (session is not null)
             {
-                MessageBox.Show(this, "Giriş başarılı! Hoş geldiniz, " + session.DisplayName, AppText.Title);
+                Dialogs.Show(this, "Giriş başarılı! Hoş geldiniz, " + session.DisplayName, AppText.Title);
                 OpenPatientPanel(session);
             }
         }

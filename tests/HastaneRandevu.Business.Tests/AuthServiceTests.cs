@@ -1,5 +1,6 @@
 using HastaneRandevu.Business.Security;
 using HastaneRandevu.Business.Services;
+using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
 using Microsoft.Extensions.Time.Testing;
@@ -30,7 +31,7 @@ public sealed class AuthServiceTests
     {
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInPatientAsync(nationalId, password, Ct));
 
-        Assert.Equal(AuthService.PatientInputRequired, error.Message);
+        Assert.Equal(ValidationMessages.PatientInputRequired, error.Message);
         _accounts.VerifyNoOtherCalls();
     }
 
@@ -42,8 +43,8 @@ public sealed class AuthServiceTests
         var patient = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInPatientAsync(NationalId, tooLong, Ct));
         var doctor = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInDoctorAsync("Dr. Ada Örnek", tooLong, Ct));
 
-        Assert.Equal(AuthService.PatientInputRequired, patient.Message);
-        Assert.Equal(AuthService.DoctorInputRequired, doctor.Message);
+        Assert.Equal(ValidationMessages.PatientInputRequired, patient.Message);
+        Assert.Equal(ValidationMessages.DoctorInputRequired, doctor.Message);
         _accounts.VerifyNoOtherCalls();
     }
 
@@ -189,7 +190,7 @@ public sealed class AuthServiceTests
     {
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInDoctorAsync(name, password, Ct));
 
-        Assert.Equal(AuthService.DoctorInputRequired, error.Message);
+        Assert.Equal(ValidationMessages.DoctorInputRequired, error.Message);
         _accounts.VerifyNoOtherCalls();
     }
 
@@ -223,9 +224,9 @@ public sealed class AuthServiceTests
 
         var expected = field switch
         {
-            "name" => AuthService.FullNameInvalid,
-            "national id" => AuthService.NationalIdInvalid,
-            _ => AuthService.PasswordInvalid,
+            "name" => ValidationMessages.FullNameInvalid,
+            "national id" => ValidationMessages.NationalIdInvalid,
+            _ => ValidationMessages.PasswordInvalid,
         };
         Assert.Equal(expected, error.Message);
         Assert.DoesNotContain(nationalId, error.Message, StringComparison.Ordinal);
@@ -238,7 +239,7 @@ public sealed class AuthServiceTests
         var error = await Assert.ThrowsAsync<BusinessRuleException>(
             () => Service().RegisterPatientAsync(new string('a', 81), NationalId, "Gizli.Sifre1", Ct));
 
-        Assert.Equal(AuthService.FullNameInvalid, error.Message);
+        Assert.Equal(ValidationMessages.FullNameInvalid, error.Message);
         _patients.VerifyNoOtherCalls();
     }
 
@@ -282,7 +283,7 @@ public sealed class AuthServiceTests
         _accounts.Setup(a => a.RecordFailedLoginAsync(role, 7, LoginPolicy.MaxFailedAttempts, Now.AddMinutes(15), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var hasher = new CountingHasher(_hasher);
-        var service = new AuthService(_accounts.Object, _patients.Object, hasher, _time);
+        var service = ServiceFactory.Auth(_accounts.Object, _patients.Object, hasher, _time);
 
         async Task<(string Message, int Simulated, int Verified)> AttemptAsync(string key, string password)
         {
@@ -334,7 +335,7 @@ public sealed class AuthServiceTests
     private void Setup(AccountCredentials account) =>
         _accounts.Setup(a => a.FindPatientByNationalIdAsync(NationalId, It.IsAny<CancellationToken>())).ReturnsAsync(account);
 
-    private AuthService Service() => new(_accounts.Object, _patients.Object, _hasher, _time);
+    private AuthService Service() => ServiceFactory.Auth(_accounts.Object, _patients.Object, _hasher, _time);
 
     /// <summary>Counts how often a real key derivation and a simulated one are run.</summary>
     private sealed class CountingHasher(IPasswordHasher inner) : IPasswordHasher
