@@ -52,7 +52,7 @@ internal static class ThemeStyler
                     picker.CalendarTitleForeColor = p.OnAccent;
                     picker.CalendarTrailingForeColor = p.TextMuted;
                     break;
-                case CheckBox check:
+                case CheckBox check and not ThemedCheckBox:
                     check.ForeColor = p.Text;
                     break;
             }

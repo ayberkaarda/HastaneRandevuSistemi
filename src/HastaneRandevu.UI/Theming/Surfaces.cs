@@ -5,6 +5,8 @@ namespace HastaneRandevu.UI.Theming;
 /// <summary>A rounded surface with a hairline border that groups related content.</summary>
 internal class CardPanel : Panel
 {
+    private Color? _fill;
+
     public CardPanel()
     {
         SetStyle(ControlStyles.ResizeRedraw | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
@@ -13,9 +15,18 @@ internal class CardPanel : Panel
         Margin = new Padding(0, 0, 0, Spacing.L);
     }
 
-    /// <summary>Fill of the card; the surface color when not set.</summary>
+    /// <summary>Fill of the card (children paint on it too); the surface color when not set or under high contrast.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public Color? Fill { get; set; }
+    public Color? Fill
+    {
+        get => _fill;
+        set
+        {
+            _fill = value;
+            BackColor = Theme.Current.IsHighContrast ? Theme.Current.Surface : value ?? Theme.Current.Surface;
+            Invalidate(invalidateChildren: true);
+        }
+    }
 
     /// <summary>A narrow colored edge on the left, for example the warm mark of a reminder.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -55,7 +66,7 @@ internal class CardPanel : Panel
         var p = Theme.Current;
         var g = e.Graphics;
         g.Clear(Painting.ParentBackground(this));
-        var fill = p.IsHighContrast ? p.Surface : Fill ?? BackColor;
+        var fill = p.IsHighContrast ? p.Surface : BackColor;
         var bounds = new RectangleF(0, 0, Width, Height);
         Painting.FillRounded(g, bounds, Theme.PxF(this, Radius.Card), fill, p.Border, Math.Max(1F, Theme.PxF(this, 1)));
         if (Edge is { } edge && !p.IsHighContrast)

@@ -141,8 +141,7 @@ internal static class FormLayout
         new() { Name = name, Width = width, Placeholder = placeholder };
 
     /// <summary>A date box that writes the day name too, for example "21 Kasım 2026 Cumartesi".</summary>
-    public static DateTimePicker DatePicker(string name, int width = 220) =>
-        new() { Name = name, Format = DateTimePickerFormat.Long, Width = width, Font = Theme.Fonts.Body };
+    public static DateField DatePicker(string name) => new() { Name = name };
 
     /// <summary>
     /// A labelled input: caption above, input below and an optional hint. The caption's access key
@@ -314,15 +313,18 @@ internal static class FormLayout
         return page;
     }
 
-    /// <summary>Two columns: a fixed-width column on one side and a column that takes the rest.</summary>
-    public static TableLayoutPanel Columns(string name, Control left, int leftWidth, Control right)
+    /// <summary>
+    /// Two columns that share the width by <paramref name="leftPercent"/>; shares (not fixed widths) let both
+    /// grow when larger text makes the window wider.
+    /// </summary>
+    public static TableLayoutPanel Columns(string name, Control left, float leftPercent, Control right)
     {
         ArgumentNullException.ThrowIfNull(left);
         ArgumentNullException.ThrowIfNull(right);
 
         var layout = new TableLayoutPanel { Name = name, Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
-        layout.ColumnStyles.Add(leftWidth > 0 ? new ColumnStyle(SizeType.Absolute, leftWidth) : new ColumnStyle(SizeType.Percent, 50));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, leftWidth > 0 ? 100 : 50));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, leftPercent));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100 - leftPercent));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         left.Dock = DockStyle.Fill;
         left.Margin = new Padding(0, 0, Spacing.S, 0);

@@ -78,24 +78,25 @@ internal static class Typography
 /// <summary>Code points of Segoe Fluent Icons / Segoe MDL2 Assets used by the application.</summary>
 internal static class Glyphs
 {
-    public const string Calendar = "";
-    public const string Clock = "";
-    public const string Search = "";
-    public const string Person = "";
-    public const string AddPerson = "";
-    public const string Lock = "";
-    public const string Download = "";
-    public const string Reminder = "";
-    public const string Schedule = "";
-    public const string Agenda = "";
-    public const string Reschedule = "";
-    public const string Leave = "";
-    public const string Info = "";
-    public const string Success = "";
-    public const string Warning = "";
-    public const string Error = "";
-    public const string Question = "";
-    public const string ChevronDown = "";
-    public const string ChevronLeft = "";
-    public const string ChevronRight = "";
+    public const string Calendar = "\uE787";
+    public const string Clock = "\uE823";
+    public const string Search = "\uE721";
+    public const string Person = "\uE77B";
+    public const string AddPerson = "\uE8FA";
+    public const string Lock = "\uE72E";
+    public const string Download = "\uE896";
+    public const string Reminder = "\uEA8F";
+    public const string Schedule = "\uEC92";
+    public const string Agenda = "\uE7EE";
+    public const string Reschedule = "\uE81C";
+    public const string Leave = "\uE709";
+    public const string Info = "\uE946";
+    public const string Success = "\uE930";
+    public const string Warning = "\uE7BA";
+    public const string Error = "\uE783";
+    public const string Question = "\uE9CE";
+    public const string CheckMark = "\uE73E";
+    public const string ChevronDown = "\uE70D";
+    public const string ChevronLeft = "\uE76B";
+    public const string ChevronRight = "\uE76C";
 }
