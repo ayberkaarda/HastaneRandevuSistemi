@@ -35,6 +35,7 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<IPatientRepository, PatientRepository>();
         services.AddSingleton<IDoctorRepository, DoctorRepository>();
         services.AddSingleton<IAppointmentRepository, AppointmentRepository>();
+        services.AddSingleton<IDoctorScheduleRepository, DoctorScheduleRepository>();
         return services;
     }
 }

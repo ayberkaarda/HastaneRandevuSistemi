@@ -159,6 +159,71 @@ namespace HastaneRandevu.Data.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HastaneRandevu.Domain.Entities.DoctorLeaveDay", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("IzinID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("Tarih");
+
+                    b.Property<int>("DoctorId")
+                        .HasColumnType("int")
+                        .HasColumnName("DoktorID");
+
+                    b.HasKey("Id")
+                        .HasName("PK_DoktorIzinGunleri");
+
+                    b.HasIndex(new[] { "DoctorId", "Date" }, "IX_DoktorIzinGunleri_DoktorID_Tarih")
+                        .IsUnique();
+
+                    b.ToTable("DoktorIzinGunleri", (string)null);
+                });
+
+            modelBuilder.Entity("HastaneRandevu.Domain.Entities.DoctorWorkingHours", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("CalismaSaatiID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int")
+                        .HasColumnName("Gun");
+
+                    b.Property<int>("DoctorId")
+                        .HasColumnType("int")
+                        .HasColumnName("DoktorID");
+
+                    b.Property<int>("EndMinute")
+                        .HasColumnType("int")
+                        .HasColumnName("BitisDakika");
+
+                    b.Property<int>("StartMinute")
+                        .HasColumnType("int")
+                        .HasColumnName("BaslangicDakika");
+
+                    b.HasKey("Id")
+                        .HasName("PK_DoktorCalismaSaatleri");
+
+                    b.HasIndex(new[] { "DoctorId", "DayOfWeek" }, "IX_DoktorCalismaSaatleri_DoktorID_Gun")
+                        .IsUnique();
+
+                    b.ToTable("DoktorCalismaSaatleri", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DoktorCalismaSaatleri_Gun", "[Gun] BETWEEN 0 AND 6");
+
+                            t.HasCheckConstraint("CK_DoktorCalismaSaatleri_Saat", "[BaslangicDakika] >= 0 AND [BitisDakika] <= 1440 AND [BaslangicDakika] < [BitisDakika] AND [BaslangicDakika] % 30 = 0 AND [BitisDakika] % 30 = 0");
+                        });
+                });
+
             modelBuilder.Entity("HastaneRandevu.Domain.Entities.Patient", b =>
                 {
                     b.Property<int>("Id")
@@ -247,6 +312,26 @@ namespace HastaneRandevu.Data.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Randevular_Hastalar");
+                });
+
+            modelBuilder.Entity("HastaneRandevu.Domain.Entities.DoctorLeaveDay", b =>
+                {
+                    b.HasOne("HastaneRandevu.Domain.Entities.Doctor", null)
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_DoktorIzinGunleri_Doktorlar");
+                });
+
+            modelBuilder.Entity("HastaneRandevu.Domain.Entities.DoctorWorkingHours", b =>
+                {
+                    b.HasOne("HastaneRandevu.Domain.Entities.Doctor", null)
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_DoktorCalismaSaatleri_Doktorlar");
                 });
 #pragma warning restore 612, 618
         }

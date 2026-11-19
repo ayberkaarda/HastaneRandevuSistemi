@@ -20,6 +20,14 @@ internal static class SchemaLimits
     public const string PasswordFormatCheck = "[SifreBicimi] IN (0, 1)";
     public const string StatusCheck = "[Durum] IN (0, 1)";
 
+    /// <summary>Values of <see cref="System.DayOfWeek"/>: 0 Sunday to 6 Saturday.</summary>
+    public const string DayOfWeekCheck = "[Gun] BETWEEN 0 AND 6";
+
+    /// <summary>Working hours lie within the day, start before they end and follow the 30 minute slots.</summary>
+    public const string WorkingHoursCheck =
+        "[BaslangicDakika] >= 0 AND [BitisDakika] <= 1440 AND [BaslangicDakika] < [BitisDakika] "
+        + "AND [BaslangicDakika] % 30 = 0 AND [BitisDakika] % 30 = 0";
+
     /// <summary>Only active appointments occupy a doctor's slot; cancelled ones are kept as history.</summary>
     public const string ActiveAppointmentFilter = "[Durum] = 0";
 }
