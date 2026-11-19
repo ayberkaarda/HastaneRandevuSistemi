@@ -1,5 +1,6 @@
 using FluentValidation;
 using HastaneRandevu.Business.Auditing;
+using HastaneRandevu.Business.Scheduling;
 using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
@@ -15,7 +16,7 @@ public interface IAppointmentService
 {
     Task<IReadOnlyList<DoctorSummary>> GetDoctorsAsync(UserSession session, CancellationToken cancellationToken = default);
 
-    /// <summary>Free future slots of the doctor on <paramref name="day"/>.</summary>
+    /// <summary>Free future slots of the doctor on <paramref name="day"/>, from the doctor's schedule.</summary>
     Task<IReadOnlyList<DateTime>> GetAvailableSlotsAsync(
         UserSession session,
         int doctorId,
@@ -35,6 +36,7 @@ public interface IAppointmentService
 internal sealed class AppointmentService(
     IAppointmentRepository appointments,
     IDoctorRepository doctors,
+    IDoctorScheduleRepository schedules,
     TimeProvider timeProvider,
     IValidator<BookingInput> bookingValidator,
     IValidator<CancellationInput> cancellationValidator,
@@ -58,9 +60,16 @@ internal sealed class AppointmentService(
         RequirePatient(session);
 
         day = day.Date;
-        var slots = AppointmentRules.SlotsOf(day);
         var now = LocalNow();
-        if (slots.Count == 0 || day > now.Date.AddDays(AppointmentRules.MaxDaysAhead))
+        if (day > now.Date.AddDays(AppointmentRules.MaxDaysAhead))
+        {
+            return [];
+        }
+
+        var date = DateOnly.FromDateTime(day);
+        var schedule = await schedules.LoadScheduleAsync(doctorId, date, date, cancellationToken).ConfigureAwait(false);
+        var slots = schedule.SlotsOf(day);
+        if (slots.Count == 0)
         {
             return [];
         }
@@ -92,7 +101,8 @@ internal sealed class AppointmentService(
         CancellationToken cancellationToken = default)
     {
         RequirePatient(session);
-        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, LocalNow()));
+        var schedule = await LoadScheduleForAsync(doctorId, startsAt, cancellationToken).ConfigureAwait(false);
+        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, LocalNow(), schedule));
 
         if (!await doctors.ExistsAsync(doctorId, cancellationToken).ConfigureAwait(false))
         {
@@ -162,14 +172,18 @@ internal sealed class AppointmentService(
         _ => false,
     };
 
-    private void RequirePatient(UserSession session)
+    private void RequirePatient(UserSession session) => Access.RequireRole(session, AccountRole.Patient, audit);
+
+    /// <summary>The doctor's schedule for the day of <paramref name="start"/>; the default one for no doctor.</summary>
+    private Task<DoctorSchedule> LoadScheduleForAsync(int doctorId, DateTime start, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(session);
-        if (session.Role != AccountRole.Patient)
+        if (doctorId <= 0)
         {
-            audit.Record(AuditEvent.AccessDenied, session.Role);
-            throw new AccessDeniedException();
+            return Task.FromResult(DoctorSchedule.Default);
         }
+
+        var day = DateOnly.FromDateTime(start);
+        return schedules.LoadScheduleAsync(doctorId, day, day, cancellationToken);
     }
 
     private DateTime LocalNow() => timeProvider.GetLocalNow().DateTime;

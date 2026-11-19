@@ -1,3 +1,4 @@
+using HastaneRandevu.Business.Scheduling;
 using HastaneRandevu.Domain.Entities;
 
 namespace HastaneRandevu.Business.Validation;
@@ -26,8 +27,17 @@ internal sealed record DoctorSignInInput(string FullName, string? Password)
         new(fullName?.Trim() ?? string.Empty, password);
 }
 
-/// <summary>A booking request checked against the local wall clock time <paramref name="Now"/>.</summary>
-internal sealed record BookingInput(int DoctorId, DateTime StartsAt, DateTime Now);
+/// <summary>
+/// A booking request checked against the local wall clock time <paramref name="Now"/> and the doctor's
+/// <paramref name="Schedule"/> (working hours and leave days).
+/// </summary>
+internal sealed record BookingInput(int DoctorId, DateTime StartsAt, DateTime Now, DoctorSchedule Schedule);
+
+/// <summary>A doctor's new weekly working hours.</summary>
+internal sealed record WeeklyHoursInput(IReadOnlyList<WorkingDay> Days);
+
+/// <summary>A leave day to add, checked against the local date <paramref name="Today"/>.</summary>
+internal sealed record LeaveDayInput(DateOnly Day, DateOnly Today);
 
 /// <summary>
 /// A cancellation of an appointment the caller owns, checked against the local wall clock time

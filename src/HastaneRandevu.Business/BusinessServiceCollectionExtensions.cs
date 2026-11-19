@@ -26,8 +26,11 @@ public static class BusinessServiceCollectionExtensions
         services.AddSingleton<IValidator<DoctorSignInInput>, DoctorSignInInputValidator>();
         services.AddSingleton<IValidator<BookingInput>, BookingInputValidator>();
         services.AddSingleton<IValidator<CancellationInput>, CancellationInputValidator>();
+        services.AddSingleton<IValidator<WeeklyHoursInput>, WeeklyHoursInputValidator>();
+        services.AddSingleton<IValidator<LeaveDayInput>, LeaveDayInputValidator>();
         services.AddSingleton<IAuthService, AuthService>();
         services.AddSingleton<IAppointmentService, AppointmentService>();
+        services.AddSingleton<IScheduleService, ScheduleService>();
         return services;
     }
 }

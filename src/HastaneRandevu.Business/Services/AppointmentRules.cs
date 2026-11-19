@@ -1,9 +1,12 @@
+using HastaneRandevu.Business.Scheduling;
+
 namespace HastaneRandevu.Business.Services;
 
 /// <summary>
-/// When appointments can be booked: 30 minute slots on weekdays between 09:00 and 17:00, in the
-/// future and at most 90 days ahead. Times are local wall clock times, as stored by the original
-/// application.
+/// When appointments can be booked: 30 minute slots, in the future and at most 90 days ahead. A doctor
+/// works the hours of their <see cref="DoctorSchedule"/>; without a saved schedule these are weekdays
+/// between 09:00 and 17:00, the rule of the original application. Times are local wall clock times, as
+/// stored by the original application.
 /// </summary>
 public static class AppointmentRules
 {
@@ -12,34 +15,13 @@ public static class AppointmentRules
     public static readonly TimeSpan DayEnd = TimeSpan.FromHours(17);
     public const int MaxDaysAhead = 90;
 
+    /// <summary>Whether <paramref name="date"/> is a working day of the default schedule.</summary>
     public static bool IsWorkingDay(DateTime date) =>
         date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
 
-    /// <summary>All slot start times of <paramref name="date"/>, or none on a weekend.</summary>
-    public static IReadOnlyList<DateTime> SlotsOf(DateTime date)
-    {
-        var day = date.Date;
-        if (!IsWorkingDay(day))
-        {
-            return [];
-        }
+    /// <summary>All slot start times of <paramref name="date"/> in the default schedule, or none on a weekend.</summary>
+    public static IReadOnlyList<DateTime> SlotsOf(DateTime date) => DoctorSchedule.Default.SlotsOf(date);
 
-        var slots = new List<DateTime>();
-        for (var time = DayStart; time + SlotLength <= DayEnd; time += SlotLength)
-        {
-            slots.Add(day + time);
-        }
-
-        return slots;
-    }
-
-    /// <summary>Whether <paramref name="start"/> is exactly the start of a slot on a working day.</summary>
-    public static bool IsSlotStart(DateTime start)
-    {
-        var time = start.TimeOfDay;
-        return IsWorkingDay(start)
-            && time >= DayStart
-            && time + SlotLength <= DayEnd
-            && (time - DayStart).Ticks % SlotLength.Ticks == 0;
-    }
+    /// <summary>Whether <paramref name="start"/> is exactly the start of a slot of the default schedule.</summary>
+    public static bool IsSlotStart(DateTime start) => DoctorSchedule.Default.IsSlotStart(start);
 }

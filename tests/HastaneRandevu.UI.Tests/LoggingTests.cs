@@ -201,6 +201,7 @@ public sealed partial class LoggingTests : IDisposable
             .AddSingleton<IPatientRepository>(accounts)
             .AddSingleton<IDoctorRepository>(appointments)
             .AddSingleton<IAppointmentRepository>(appointments)
+            .AddSingleton<IDoctorScheduleRepository>(new EmptySchedules())
             .AddBusinessServices();
         await using var provider = services.BuildServiceProvider();
         var auth = provider.GetRequiredService<IAuthService>();
@@ -282,7 +283,8 @@ public sealed partial class LoggingTests : IDisposable
                     .AddSingleton<IPatientRepository>(new InMemoryAccounts())
                     .AddSingleton<IDoctorRepository>(new InMemoryAppointments())
                     .AddSingleton<IAppointmentRepository>(new InMemoryAppointments())
-                    .AddBusinessServices();
+                    .AddSingleton<IDoctorScheduleRepository>(new EmptySchedules())
+            .AddBusinessServices();
                 await using var provider = services.BuildServiceProvider();
 
                 var refused = await Assert.ThrowsAsync<BusinessRuleException>(
@@ -432,6 +434,25 @@ public sealed partial class LoggingTests : IDisposable
 
         public Task<bool> RecordSuccessfulLoginAsync(AccountRole role, AccountCredentials verified, DateTime now, string? newPasswordHash, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
+    }
+
+    /// <summary>No saved schedules: every doctor works the default hours.</summary>
+    private sealed class EmptySchedules : IDoctorScheduleRepository
+    {
+        public Task<IReadOnlyList<WorkingDay>> GetWorkingDaysAsync(int doctorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<WorkingDay>>([]);
+
+        public Task<IReadOnlyList<DateOnly>> GetLeaveDaysAsync(int doctorId, DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<DateOnly>>([]);
+
+        public Task ReplaceWorkingDaysAsync(int doctorId, IReadOnlyList<WorkingDay> days, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> AddLeaveDayAsync(int doctorId, DateOnly day, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> RemoveLeaveDayAsync(int doctorId, DateOnly day, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>One doctor and a list of appointments with the unique active slot rule.</summary>
