@@ -20,7 +20,7 @@ internal enum ButtonKind
 /// unchanged) painted with the theme: rounded corners, hover and pressed states, an optional leading
 /// glyph and a visible focus ring. Under high contrast the native button is used.
 /// </summary>
-internal sealed class ThemedButton : Button
+internal sealed class ThemedButton : Button, IThemeAware
 {
     private const float GlyphPoints = 10F;
 
@@ -42,20 +42,31 @@ internal sealed class ThemedButton : Button
         Font = Theme.Fonts.BodyStrong;
         Cursor = Cursors.Hand;
 
+        ApplyStyles();
+    }
+
+    /// <summary>Native drawing under high contrast, custom drawing otherwise.</summary>
+    private void ApplyStyles()
+    {
+        const ControlStyles Painted = ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
+            | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor;
         if (Theme.Current.IsHighContrast)
         {
+            SetStyle(Painted, false);
             FlatStyle = FlatStyle.System;
-            return;
+        }
+        else
+        {
+            SetStyle(Painted, true);
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            UseVisualStyleBackColor = false;
         }
 
-        SetStyle(
-            ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer
-                | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor,
-            true);
-        FlatStyle = FlatStyle.Flat;
-        FlatAppearance.BorderSize = 0;
-        UseVisualStyleBackColor = false;
+        Invalidate();
     }
+
+    void IThemeAware.ApplyTheme(ThemeRemap remap) => ApplyStyles();
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public ButtonKind Kind { get; set; }

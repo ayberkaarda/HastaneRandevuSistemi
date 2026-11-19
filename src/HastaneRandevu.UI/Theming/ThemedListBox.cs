@@ -23,7 +23,7 @@ internal readonly record struct ListRow(string Primary, string? Secondary = null
 /// selection, keyboard and accessibility stay those of the native list box (an item's text is its
 /// <see cref="object.ToString"/>). Under high contrast selected rows use HighlightText on Highlight.
 /// </summary>
-internal sealed class ThemedListBox : ListBox
+internal sealed class ThemedListBox : ListBox, IThemeAware
 {
     private const int WmPaint = 0x000F;
     private const TextFormatFlags LineFlags = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
@@ -50,6 +50,9 @@ internal sealed class ThemedListBox : ListBox
         // A list that fills a card keeps room for a couple of rows; a smaller window scrolls instead.
         MinimumSize = new Size(0, 100);
     }
+
+    /// <summary>The colors follow the palette (see <see cref="ThemeRefresher"/>); the rows are painted again.</summary>
+    void IThemeAware.ApplyTheme(ThemeRemap remap) => Invalidate();
 
     /// <summary>Turns an item into the lines of its row; the item's text is used as a single line when not set.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]

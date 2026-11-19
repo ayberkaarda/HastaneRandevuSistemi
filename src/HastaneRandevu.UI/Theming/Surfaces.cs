@@ -3,7 +3,7 @@ using System.ComponentModel;
 namespace HastaneRandevu.UI.Theming;
 
 /// <summary>A rounded surface with a hairline border that groups related content.</summary>
-internal class CardPanel : Panel
+internal class CardPanel : Panel, IThemeAware
 {
     private Color? _fill;
 
@@ -26,6 +26,14 @@ internal class CardPanel : Panel
             BackColor = Theme.Current.IsHighContrast ? Theme.Current.Surface : value ?? Theme.Current.Surface;
             Invalidate(invalidateChildren: true);
         }
+    }
+
+    /// <summary>The fill follows the palette through the background color; the edge is a stored color.</summary>
+    void IThemeAware.ApplyTheme(ThemeRemap remap)
+    {
+        Edge = remap.Map(Edge);
+        _fill = remap.Map(_fill);
+        Invalidate(invalidateChildren: true);
     }
 
     /// <summary>A narrow colored edge on the left, for example the warm mark of a reminder.</summary>
@@ -82,7 +90,7 @@ internal class CardPanel : Panel
 }
 
 /// <summary>A square badge with a glyph (or the application logo) on a tinted background.</summary>
-internal sealed class GlyphBadge : Control
+internal sealed class GlyphBadge : Control, IThemeAware
 {
     public GlyphBadge(string glyph, int size, float glyphPoints = 14F)
     {
@@ -113,6 +121,13 @@ internal sealed class GlyphBadge : Control
     /// <summary>When set, the image is drawn instead of the glyph.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public Image? Image { get; set; }
+
+    void IThemeAware.ApplyTheme(ThemeRemap remap)
+    {
+        Fill = remap.Map(Fill);
+        GlyphColor = remap.Map(GlyphColor);
+        Invalidate();
+    }
 
     protected override void OnPaint(PaintEventArgs e)
     {

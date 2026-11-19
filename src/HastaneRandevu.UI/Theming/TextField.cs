@@ -6,7 +6,7 @@ namespace HastaneRandevu.UI.Theming;
 /// stays a normal, focusable control (tab order, access keys and screen readers are unchanged).
 /// Under high contrast the native border is kept.
 /// </summary>
-internal sealed class TextField : Control
+internal sealed class TextField : Control, IThemeAware
 {
     private bool _hover;
 
@@ -44,6 +44,15 @@ internal sealed class TextField : Control
     }
 
     public TextBox Input { get; }
+
+    /// <summary>The native border returns under high contrast; the frame paints it otherwise.</summary>
+    void IThemeAware.ApplyTheme(ThemeRemap remap)
+    {
+        Input.BorderStyle = Theme.Current.IsHighContrast ? BorderStyle.FixedSingle : BorderStyle.None;
+        SyncInputBackground();
+        PerformLayout();
+        Invalidate();
+    }
 
     protected override void OnGotFocus(EventArgs e)
     {

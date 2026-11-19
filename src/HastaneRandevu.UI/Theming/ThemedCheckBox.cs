@@ -5,7 +5,7 @@ namespace HastaneRandevu.UI.Theming;
 /// around the box. Space, Tab, the access key and screen readers stay those of the native check box.
 /// Under high contrast the native look is kept.
 /// </summary>
-internal sealed class ThemedCheckBox : CheckBox
+internal sealed class ThemedCheckBox : CheckBox, IThemeAware
 {
     private const int Box = 18;
     private const int Gap = 8;
@@ -20,13 +20,20 @@ internal sealed class ThemedCheckBox : CheckBox
         AutoSize = true;
         Font = Theme.Fonts.Body;
         Cursor = Cursors.Hand;
-        if (Theme.Current.IsHighContrast)
-        {
-            return;
-        }
-
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        ApplyStyles();
     }
+
+    /// <summary>Native drawing under high contrast, custom drawing otherwise.</summary>
+    void IThemeAware.ApplyTheme(ThemeRemap remap)
+    {
+        ApplyStyles();
+        AutoSize = false;
+        AutoSize = true;
+        Invalidate();
+    }
+
+    private void ApplyStyles() =>
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, !Theme.Current.IsHighContrast);
 
     public override Size GetPreferredSize(Size proposedSize)
     {

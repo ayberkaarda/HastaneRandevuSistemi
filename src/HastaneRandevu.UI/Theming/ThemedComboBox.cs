@@ -7,7 +7,7 @@ namespace HastaneRandevu.UI.Theming;
 /// shown while nothing is selected. Selection, keyboard, items and accessibility stay native.
 /// Under high contrast the native look is kept.
 /// </summary>
-internal sealed class ThemedComboBox : ComboBox
+internal sealed class ThemedComboBox : ComboBox, IThemeAware
 {
     /// <summary>Space the native box adds around the item height (borders and the edit margin).</summary>
     private const int NativeChrome = 6;
@@ -19,16 +19,24 @@ internal sealed class ThemedComboBox : ComboBox
         DropDownStyle = ComboBoxStyle.DropDownList;
         Font = Theme.Fonts.Body;
         Margin = new Padding(0, Spacing.XS, 0, Spacing.XS);
-        if (Theme.Current.IsHighContrast)
-        {
-            return;
-        }
-
-        DrawMode = DrawMode.OwnerDrawFixed;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        ApplyStyles();
 
         // ItemHeight is not set here: setting it would create the window handle in the constructor
         // (and on whichever thread builds the form). It is set once the handle exists instead.
+    }
+
+    /// <summary>Native drawing under high contrast, custom drawing otherwise; the box is recreated for it.</summary>
+    void IThemeAware.ApplyTheme(ThemeRemap remap)
+    {
+        ApplyStyles();
+        Invalidate();
+    }
+
+    private void ApplyStyles()
+    {
+        var painted = !Theme.Current.IsHighContrast;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, painted);
+        DrawMode = painted ? DrawMode.OwnerDrawFixed : DrawMode.Normal;
     }
 
     /// <summary>Text shown in muted color while no item is selected, for example "Doktor seçin".</summary>
