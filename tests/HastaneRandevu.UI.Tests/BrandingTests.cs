@@ -1,5 +1,6 @@
 using HastaneRandevu.UI.Infrastructure;
 using HastaneRandevu.UI.Tests.Support;
+using HastaneRandevu.UI.Theming;
 using static HastaneRandevu.UI.Tests.Support.StaThread;
 
 namespace HastaneRandevu.UI.Tests;
@@ -34,9 +35,10 @@ public sealed class BrandingTests
             }
         }
 
-        Assert.Same(AppAssets.Logo, Find<PictureBox>(login, "pictureBoxLogo").Image);
-        Assert.Same(AppAssets.Background, Find<PictureBox>(login, "pictureBoxArkaplan").Image);
-        Assert.Same(AppAssets.Background, Find<PictureBox>(register, "pictureBoxArkaplan").Image);
+        Assert.Same(AppAssets.Logo, Find<GlyphBadge>(login, "brandLogo").Image);
+        Assert.Same(AppAssets.Logo, Find<GlyphBadge>(register, "brandLogo").Image);
+        Assert.Same(AppAssets.Logo, Find<GlyphBadge>(doctorSignIn, "brandLogo").Image);
+        Assert.All(new Form[] { login, register, doctorSignIn }, form => Assert.Null(form.BackgroundImage));
     });
 
     [Fact]
@@ -47,7 +49,7 @@ public sealed class BrandingTests
             .Order(StringComparer.Ordinal);
 
         Assert.Equal(
-            ["HastaneRandevu.UI.Assets.app.ico", "HastaneRandevu.UI.Assets.background.png", "HastaneRandevu.UI.Assets.logo.png"],
+            ["HastaneRandevu.UI.Assets.app.ico", "HastaneRandevu.UI.Assets.logo-256.png"],
             images);
         Assert.Equal(new Size(256, 256), AppAssets.Logo.Size);
     }
