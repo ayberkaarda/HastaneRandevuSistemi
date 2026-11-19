@@ -310,8 +310,8 @@ dotnet test -c Release
 
 | Proje | Tür | Kapsam | Sonuç (`-c Release`) |
 |---|---|---|---|
-| `tests/HastaneRandevu.Business.Tests` | Birim | Doğrulayıcı sınırları (şifre 8/64 ve girişte 100, ad 80, T.C. sağlama algoritması, 09:00-16:30 dilimleri, 90./91. gün, iptal sınırı), PBKDF2 ve biçim yükseltme, kilidin bitişi, sıkı Moq mock'larıyla sahiplik ve denetim olayları | 268 başarılı |
-| `tests/HastaneRandevu.Data.Tests` | Entegrasyon | Bellek içi SQLite üzerinde servisler ve repository'ler (kilit zamanlaması, hash yükseltme, dilim ve ufuk sınırları, numara yoklama); SQL Server'da randevu ve kilit yarışları, eski veritabanı yükseltme ve kilidi | SQL Server ve `HASTANE_LEGACY_BACKUP` ile 63 başarılı (yedek olmadan 62 başarılı, 1 atlandı); SQL Server olmadan 47 başarılı, 16 atlandı |
+| `tests/HastaneRandevu.Business.Tests` | Birim | Doğrulayıcı sınırları (şifre 8/64 ve girişte 100, ad 80, T.C. sağlama algoritması, 09:00-16:30 dilimleri, 90./91. gün, iptal sınırı), PBKDF2 ve biçim yükseltme, kilidin bitişi, sıkı Moq mock'larıyla sahiplik ve denetim olayları | 270 başarılı |
+| `tests/HastaneRandevu.Data.Tests` | Entegrasyon | Bellek içi SQLite üzerinde servisler ve repository'ler (kilit zamanlaması, hash yükseltme, dilim ve ufuk sınırları, numara yoklama); SQL Server'da randevu, erteleme, program ve kilit yarışları, eşzamanlı demo açılışları, eski veritabanı yükseltme ve kilidi | SQL Server ve `HASTANE_LEGACY_BACKUP` ile 74 başarılı (yedek olmadan 73 başarılı, 1 atlandı); SQL Server olmadan 49 başarılı, 25 atlandı |
 | `tests/HastaneRandevu.UI.Tests` | Birim | Örnek yapılandırma, hata mesajları, günlük içeriği ve dosyaları, ileti kutusu yardımcısı, kilit açıldıktan sonra odak, yazma korumaları, en son yanıtın gösterilmesi, tarafsız marka | 85 başarılı |
 
 SQL Server testleri `HASTANE_TEST_SQLSERVER` değişkenindeki sunucuda (varsayılan: Windows kimlik doğrulamalı

@@ -52,6 +52,14 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 - Kilitli bir hesaba yapılan giriş denemesi günlüğe ayrı bir kilit koduyla değil, diğer tüm başarısız girişler gibi
   `auth.sign_in.failed` olarak yazılır; böylece günlük dosyasını okuyabilen yerel kullanıcı hangi hesabın kilitli
   olduğunu öğrenemez.
+- Aynı randevuyu farklı saatlere taşıyan iki oturum artık ikisi birden başarılı olamaz: taşıma yalnızca randevu
+  hâlâ okunan saatteyse uygulanır; aksi halde hiçbir şey değişmez ve hastadan listeyi yenilemesi istenir.
+- Randevu alma ve erteleme, doktor bazındaki bir uygulama kilidi altında doktorun kaydedilmiş programına göre yeniden
+  denetlenir; izin günü ve haftalık saat değişiklikleri de aynı kilidi alır. Böylece doktorun az önce kapattığı güne
+  randevu yazılmaz, önce yazılan randevu da doktorun çakışma listesinde görünür. Haftalık saatlerin eşzamanlı ilk
+  kaydı artık iki programın birleşimini bırakamaz.
+- Demo modu, demo hesaplarını yalnızca hiç hasta, doktor veya randevu bulunmayan bir veritabanına tek bir transaction
+  içinde ekler; aksi halde eklemeyi atlar ve günlüğe yazar. Yarıda kalan bir açılış hiçbir demo hesabı bırakmaz.
 
 ### Kaldırılanlar
 

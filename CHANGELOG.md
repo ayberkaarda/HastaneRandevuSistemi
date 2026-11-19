@@ -51,6 +51,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A sign-in refused because the account is locked is logged as `auth.sign_in.failed`, like every other failed
   sign-in, instead of with a separate lock code, so a local user who can read the log file cannot tell which
   account is locked.
+- Two sessions that move the same appointment to different slots no longer both succeed: the move only applies
+  while the appointment is still at the time that was read, otherwise nothing changes and the patient is asked to
+  refresh.
+- Bookings and moves are checked again against the doctor's committed schedule under a per-doctor application
+  lock that leave days and weekly hour changes take as well, so no appointment lands on a day the doctor has just
+  closed, and one written first shows up in the doctor's conflict list. Two first saves of weekly hours can no
+  longer leave the union of both schedules.
+- Demo mode adds the demo accounts only to a database without any patient, doctor or appointment, in one
+  transaction, and logs that it skipped them otherwise; a failed start leaves no demo account behind.
 
 ### Removed
 
