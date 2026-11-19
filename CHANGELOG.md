@@ -11,8 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Daily rolling file logs with Serilog under `%LOCALAPPDATA%\HastaneRandevu\logs` (last 30 files kept).
   National ids, names, passwords, appointment details and exception messages are never logged.
-- Anonymous audit entries for sign-in, lockout, password upgrade, registration, booking, cancellation and
-  refused access: a fixed code and a role only, for example `Audit auth.account.locked patient`.
+- Anonymous audit entries for sign-in, password upgrade, registration, booking, cancellation and refused
+  access: a fixed code and a role only, for example `Audit auth.sign_in.failed patient`.
 - Central FluentValidation validators for registration, patient and doctor sign-in, booking and cancellation.
 - Validator boundary tests, Moq tests for the lockout end, the hash upgrade, the 90 day window, the cancellation
   cut-off and ownership, and SQLite tests for the same rules with the real repositories.
@@ -31,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - After a refused sign-in the password field, and after a registration the name field, receive the focus once
   the form is enabled again.
+- A sign-in refused because the account is locked is logged as `auth.sign_in.failed`, like every other failed
+  sign-in, instead of with a separate lock code, so a local user who can read the log file cannot tell which
+  account is locked.
 
 ### Removed
 

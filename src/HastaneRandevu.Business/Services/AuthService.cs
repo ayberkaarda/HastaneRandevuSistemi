@@ -121,9 +121,11 @@ internal sealed class AuthService(
         if (account.LockoutEnd > now)
         {
             // Same answer and about the same cost as a wrong password; nothing is written, so the
-            // lock neither grows nor ends early.
+            // lock neither grows nor ends early. The audit code is the one of every other failure too:
+            // the log file is readable by whoever runs the application, so a separate lock code would
+            // tell a local user which account is locked.
             passwordHasher.SimulateVerification(password);
-            audit.Record(AuditEvent.SignInLocked, role);
+            audit.Record(AuditEvent.SignInFailed, role);
             throw new BusinessRuleException(invalidMessage);
         }
 
@@ -155,7 +157,7 @@ internal sealed class AuthService(
         if (!recorded)
         {
             // A concurrent failure locked the account (or its password changed) after it was read.
-            audit.Record(AuditEvent.SignInLocked, role);
+            audit.Record(AuditEvent.SignInFailed, role);
             throw new BusinessRuleException(invalidMessage);
         }
 

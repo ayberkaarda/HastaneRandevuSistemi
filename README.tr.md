@@ -210,7 +210,7 @@ türünü yazar. Denetim kayıtları sabit bir kod ve rolden oluşur, örneğin:
 
 ```text
 2026-11-19 10:42:07.118 +03:00 [INF] Audit auth.sign_in.failed patient
-2026-11-19 10:42:31.502 +03:00 [INF] Audit auth.account.locked patient
+2026-11-19 10:42:31.502 +03:00 [INF] Audit auth.sign_in.succeeded patient
 2026-11-19 10:58:12.034 +03:00 [INF] Audit appointment.booked patient
 ```
 

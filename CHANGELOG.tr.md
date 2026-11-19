@@ -11,8 +11,8 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 - `%LOCALAPPDATA%\HastaneRandevu\logs` altında Serilog ile günlük dönen dosya günlükleri (son 30 dosya saklanır).
   T.C. kimlik numaraları, adlar, şifreler, randevu ayrıntıları ve istisna mesajları hiçbir zaman günlüğe yazılmaz.
-- Giriş, hesap kilidi, şifre yükseltme, kayıt, randevu alma, iptal ve reddedilen erişim için anonim denetim
-  kayıtları: yalnızca sabit bir kod ve rol, örneğin `Audit auth.account.locked patient`.
+- Giriş, şifre yükseltme, kayıt, randevu alma, iptal ve reddedilen erişim için anonim denetim kayıtları:
+  yalnızca sabit bir kod ve rol, örneğin `Audit auth.sign_in.failed patient`.
 - Kayıt, hasta ve doktor girişi, randevu alma ve iptal için merkezi FluentValidation doğrulayıcıları.
 - Doğrulayıcı sınır testleri; kilidin bitişi, hash yükseltme, 90 günlük ufuk, iptal sınırı ve sahiplik için Moq
   testleri; aynı kurallar için gerçek repository'lerle SQLite testleri.
@@ -31,6 +31,9 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 ### Düzeltilenler
 
 - Reddedilen bir girişten sonra şifre alanı, kayıttan sonra ad alanı, form yeniden etkinleştiğinde odağı alır.
+- Kilitli bir hesaba yapılan giriş denemesi günlüğe ayrı bir kilit koduyla değil, diğer tüm başarısız girişler gibi
+  `auth.sign_in.failed` olarak yazılır; böylece günlük dosyasını okuyabilen yerel kullanıcı hangi hesabın kilitli
+  olduğunu öğrenemez.
 
 ### Kaldırılanlar
 

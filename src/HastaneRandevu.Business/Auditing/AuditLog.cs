@@ -12,11 +12,13 @@ public enum AuditEvent
     /// <summary>A sign-in succeeded.</summary>
     SignInSucceeded = 1,
 
-    /// <summary>A sign-in failed: unknown account or wrong password.</summary>
+    /// <summary>
+    /// A sign-in failed: unknown account, wrong password or a locked account. The three cases share
+    /// one event on purpose; the log file is readable by the local Windows user, and a separate lock
+    /// event would tell that user which account is locked. (Value 3 was a separate lock event and
+    /// stays unused.)
+    /// </summary>
     SignInFailed = 2,
-
-    /// <summary>A sign-in was refused because the account is locked.</summary>
-    SignInLocked = 3,
 
     /// <summary>A plain text or weaker stored password was replaced with a current hash.</summary>
     PasswordUpgraded = 4,
@@ -50,7 +52,6 @@ public static class AuditCodes
     {
         AuditEvent.SignInSucceeded => "auth.sign_in.succeeded",
         AuditEvent.SignInFailed => "auth.sign_in.failed",
-        AuditEvent.SignInLocked => "auth.account.locked",
         AuditEvent.PasswordUpgraded => "auth.password.upgraded",
         AuditEvent.PatientRegistered => "auth.patient.registered",
         AuditEvent.AppointmentBooked => "appointment.booked",

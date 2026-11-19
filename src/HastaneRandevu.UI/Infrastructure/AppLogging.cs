@@ -40,7 +40,7 @@ internal static class AppLogging
 }
 
 /// <summary>
-/// Writes audit events as a fixed code and a role, for example <c>Audit auth.account.locked patient</c>.
+/// Writes audit events as a fixed code and a role, for example <c>Audit auth.sign_in.failed patient</c>.
 /// Nothing that identifies an account or an appointment is available here, so nothing can leak.
 /// </summary>
 internal sealed class SerilogAuditLog(ILogger logger) : IAuditLog

@@ -96,7 +96,8 @@ public sealed partial class LoggingTests : IDisposable
             }
         });
 
-        Assert.Contains("[INF] Audit auth.account.locked patient", text, StringComparison.Ordinal);
+        Assert.Contains("[INF] Audit auth.sign_in.failed patient", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("locked", text, StringComparison.Ordinal);
         Assert.Contains("[INF] Audit appointment.cancelled doctor", text, StringComparison.Ordinal);
         Assert.All(Lines(text), line => Assert.Matches(AuditLine(), line));
     }
@@ -153,8 +154,9 @@ public sealed partial class LoggingTests : IDisposable
 
         var text = File.ReadAllText(Assert.Single(Directory.GetFiles(_directory)));
         Assert.Contains("Audit auth.patient.registered patient", text, StringComparison.Ordinal);
-        Assert.Equal(LoginPolicy.MaxFailedAttempts, Regex.Count(text, "Audit auth.sign_in.failed patient"));
-        Assert.Contains("Audit auth.account.locked patient", text, StringComparison.Ordinal);
+        // The refusal of the locked account is counted as one more failure, not as a lock.
+        Assert.Equal(LoginPolicy.MaxFailedAttempts + 1, Regex.Count(text, "Audit auth.sign_in.failed patient"));
+        Assert.DoesNotContain("locked", text, StringComparison.Ordinal);
         Assert.Contains("Audit auth.sign_in.succeeded patient", text, StringComparison.Ordinal);
         Assert.Contains("Audit appointment.booked patient", text, StringComparison.Ordinal);
         Assert.Contains("Audit appointment.slot_taken patient", text, StringComparison.Ordinal);
@@ -162,6 +164,58 @@ public sealed partial class LoggingTests : IDisposable
         Assert.Contains("Audit appointment.cancelled patient", text, StringComparison.Ordinal);
         Assert.All(Lines(text), line => Assert.Matches(AllowedLine(), line));
         AssertNoPersonalData(text);
+    }
+
+    /// <summary>
+    /// The log file is readable by the local Windows user, who knows when they made an attempt. A wrong
+    /// password for an unknown, an unlocked and a locked account must therefore leave identical entries
+    /// (and show identical messages), or the file would reveal which accounts exist or are locked.
+    /// </summary>
+    [Fact]
+    public async Task SignInFailures_DoNotDiscloseLockStateInLocalLog()
+    {
+        const string Unlocked = "10000000450";
+        const string Locked = "10000000528";
+        const string Unknown = "10000000696";
+        var hasher = new PasswordHasher(iterations: 1_000);
+        var accounts = new FixedAccounts(
+            new AccountCredentials(1, PatientName, Unlocked, hasher.Hash(Password), PasswordFormat.Pbkdf2, 0, null),
+            new AccountCredentials(2, "Mert Deneme", Locked, hasher.Hash(Password), PasswordFormat.Pbkdf2, 0, Now.UtcDateTime.AddMinutes(10)));
+
+        var outcomes = new List<(string Message, string[] Entries)>();
+        foreach (var nationalId in new[] { Unknown, Unlocked, Locked })
+        {
+            var directory = Path.Combine(_directory, nationalId);
+            string message;
+            using (var logger = AppLogging.CreateLogger(directory))
+            {
+                var services = new ServiceCollection()
+                    .AddSingleton<IAuditLog>(new SerilogAuditLog(logger))
+                    .AddSingleton<TimeProvider>(new FixedTime(Now))
+                    .AddSingleton<IPasswordHasher>(hasher)
+                    .AddSingleton<IAccountRepository>(accounts)
+                    .AddSingleton<IPatientRepository>(new InMemoryAccounts())
+                    .AddSingleton<IDoctorRepository>(new InMemoryAppointments())
+                    .AddSingleton<IAppointmentRepository>(new InMemoryAppointments())
+                    .AddBusinessServices();
+                await using var provider = services.BuildServiceProvider();
+
+                var refused = await Assert.ThrowsAsync<BusinessRuleException>(
+                    () => provider.GetRequiredService<IAuthService>().SignInPatientAsync(nationalId, "yanlis-" + Password, Ct));
+                ErrorReporter.Record(logger, refused); // as the sign-in form does
+                message = refused.Message;
+            }
+
+            var entries = Lines(File.ReadAllText(Assert.Single(Directory.GetFiles(directory))))
+                .Select(line => StampPattern().Replace(line, string.Empty))
+                .ToArray();
+            outcomes.Add((message, entries));
+        }
+
+        Assert.Equal(["[INF] Audit auth.sign_in.failed patient", "[WRN] Operation refused: BusinessRuleException"], outcomes[0].Entries);
+        Assert.All(outcomes, o => Assert.Equal(outcomes[0].Entries, o.Entries));
+        Assert.All(outcomes, o => Assert.Equal(outcomes[0].Message, o.Message));
+        Assert.All(outcomes, o => Assert.DoesNotContain(o.Entries, e => e.Contains("locked", StringComparison.OrdinalIgnoreCase)));
     }
 
     public void Dispose()
@@ -190,6 +244,9 @@ public sealed partial class LoggingTests : IDisposable
         text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
     private const string Stamp = @"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2} ";
+
+    [GeneratedRegex(Stamp)]
+    private static partial Regex StampPattern();
 
     [GeneratedRegex(Stamp + @"\[INF\] Audit [a-z_]+(\.[a-z_]+)+ (patient|doctor)$")]
     private static partial Regex AuditLine();
@@ -274,6 +331,22 @@ public sealed partial class LoggingTests : IDisposable
             _patient!.FailedLoginCount = 0;
             return Task.FromResult(true);
         }
+    }
+
+    /// <summary>Fixed patient accounts; failures and successes are accepted and not stored.</summary>
+    private sealed class FixedAccounts(params AccountCredentials[] patients) : IAccountRepository
+    {
+        public Task<AccountCredentials?> FindPatientByNationalIdAsync(string nationalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(patients.SingleOrDefault(p => p.NationalId == nationalId));
+
+        public Task<AccountCredentials?> FindDoctorByNameAsync(string fullName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<AccountCredentials?>(null);
+
+        public Task RecordFailedLoginAsync(AccountRole role, int accountId, int maxAttempts, DateTime lockoutEnd, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<bool> RecordSuccessfulLoginAsync(AccountRole role, AccountCredentials verified, DateTime now, string? newPasswordHash, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
     /// <summary>One doctor and a list of appointments with the unique active slot rule.</summary>
