@@ -11,7 +11,10 @@ public interface IDoctorScheduleRepository
     /// <summary>The doctor's leave days in [<paramref name="firstDay"/>, <paramref name="lastDay"/>], ordered.</summary>
     Task<IReadOnlyList<DateOnly>> GetLeaveDaysAsync(int doctorId, DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken = default);
 
-    /// <summary>Replaces all weekly hours of the doctor with <paramref name="days"/> in one transaction.</summary>
+    /// <summary>
+    /// Replaces all weekly hours of the doctor with <paramref name="days"/> in one transaction, serialized
+    /// with every other replacement for the same doctor (also when the doctor has no rows yet).
+    /// </summary>
     Task ReplaceWorkingDaysAsync(int doctorId, IReadOnlyList<WorkingDay> days, CancellationToken cancellationToken = default);
 
     /// <summary>Adds a leave day; returns <see langword="false"/> when the doctor already has that day off.</summary>

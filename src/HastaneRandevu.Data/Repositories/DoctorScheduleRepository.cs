@@ -45,6 +45,9 @@ internal sealed class DoctorScheduleRepository(IDbContextFactory<HospitalDbConte
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
+        // Without the lock two first saves of a doctor without rows both delete nothing and then both
+        // insert, leaving the union of the two schedules.
+        await DoctorLock.AcquireAsync(db, doctorId, cancellationToken).ConfigureAwait(false);
         await db.WorkingHours
             .Where(h => h.DoctorId == doctorId)
             .ExecuteDeleteAsync(cancellationToken)
