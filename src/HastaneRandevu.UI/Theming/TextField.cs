@@ -74,6 +74,13 @@ internal sealed class TextField : Control
         base.OnLayout(levent);
         var inset = Theme.Px(this, Spacing.S + 2);
         var height = Input.PreferredHeight;
+        if (height > Height && MinimumSize.Height < height)
+        {
+            // Large text needs a taller box than the shared control height; the frame grows with it.
+            MinimumSize = new Size(MinimumSize.Width, height);
+            return;
+        }
+
         Input.SetBounds(inset, Math.Max(0, (Height - height) / 2), Math.Max(0, Width - (2 * inset)), height);
     }
 
