@@ -176,7 +176,8 @@ public sealed class ScheduleFormTests
 
             // What the row can paint: the list width minus the padding on both sides, as in the list's own drawing.
             var available = list.ClientSize.Width - Theme.Px(list, (Spacing.M + 2) + Spacing.M);
-            foreach (var (row, time) in rows.Zip(["03 Mart 2026 Salı, 10:00", "03 Mart 2026 Salı, 14:30"]))
+            string[] times = ["03 Mart 2026 Salı, 10:00", "03 Mart 2026 Salı, 14:30"];
+            foreach (var (row, time) in rows.Zip(times))
             {
                 var stamp = row[..row.IndexOf(" · ", StringComparison.Ordinal)];
                 Assert.Equal(time.TrimStart('0'), stamp);
