@@ -93,6 +93,13 @@ public sealed class LegacyUpgradeTests
         Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 6 AND Sifre = N'1234' AND SifreBicimi = 1", ct));
         await auth.SignInPatientAsync("20000000001", "sifre1", ct);
 
+        // The schedule migration ran after the adoption; existing doctors keep the default hours.
+        Assert.Equal(1, await database.ScalarAsync(
+            "SELECT COUNT(*) FROM dbo.__EFMigrationsHistory WHERE MigrationId LIKE N'%_AddDoctorSchedules'",
+            ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.DoktorCalismaSaatleri", ct));
+        Assert.True((await provider.GetRequiredService<IScheduleService>().GetMyScheduleAsync(doctor, ct)).UsesDefaultHours);
+
         // Existing appointments are listed for their owners, past ones included.
         var appointments = provider.GetRequiredService<IAppointmentService>();
         Assert.Equal([9, 4], (await appointments.GetMyAppointmentsAsync(patient, ct)).Select(a => a.Id));
@@ -358,6 +365,9 @@ public sealed class LegacyUpgradeTests
             "FK_Randevular_Hastalar", "FK_Randevular_Doktorlar",
             "CK_Hastalar_BasarisizGiris", "CK_Doktorlar_BasarisizGiris", "CK_Randevular_Durum",
             "CK_Hastalar_SifreBicimi", "CK_Doktorlar_SifreBicimi",
+            "PK_DoktorCalismaSaatleri", "PK_DoktorIzinGunleri",
+            "FK_DoktorCalismaSaatleri_Doktorlar", "FK_DoktorIzinGunleri_Doktorlar",
+            "CK_DoktorCalismaSaatleri_Gun", "CK_DoktorCalismaSaatleri_Saat",
         ];
         foreach (var name in expected)
         {
