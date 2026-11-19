@@ -28,6 +28,41 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
             .ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<AppointmentHistoryEntry>> GetHistoryForPatientAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        return await (
+                from a in db.Appointments.AsNoTracking()
+                join d in db.Doctors on a.DoctorId equals d.Id
+                where a.PatientId == patientId
+                orderby a.StartsAt descending, a.Id descending
+                select new AppointmentHistoryEntry(a.Id, d.FullName, d.Branch, a.StartsAt, a.Status, a.CancelledAt))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<AgendaEntry>> GetAgendaForDoctorAsync(
+        int doctorId,
+        DateTime rangeStart,
+        DateTime rangeEnd,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        return await (
+                from a in db.Appointments.AsNoTracking()
+                join p in db.Patients on a.PatientId equals p.Id
+                where a.DoctorId == doctorId
+                    && a.Status == AppointmentStatus.Active
+                    && a.StartsAt >= rangeStart
+                    && a.StartsAt < rangeEnd
+                orderby a.StartsAt, a.Id
+                select new AgendaEntry(a.Id, a.StartsAt, p.FullName, p.NationalId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<DateTime>> GetBookedStartsAsync(
         int doctorId,
         DateTime rangeStart,

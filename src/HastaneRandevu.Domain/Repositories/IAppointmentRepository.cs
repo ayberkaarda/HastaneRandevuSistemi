@@ -10,6 +10,16 @@ public interface IAppointmentRepository
     /// <summary>Active appointments of one doctor, earliest first.</summary>
     Task<IReadOnlyList<AppointmentDetails>> GetActiveForDoctorAsync(int doctorId, CancellationToken cancellationToken = default);
 
+    /// <summary>All appointments of one patient, cancelled ones included, latest first.</summary>
+    Task<IReadOnlyList<AppointmentHistoryEntry>> GetHistoryForPatientAsync(int patientId, CancellationToken cancellationToken = default);
+
+    /// <summary>The doctor's active appointments in [<paramref name="rangeStart"/>, <paramref name="rangeEnd"/>), earliest first.</summary>
+    Task<IReadOnlyList<AgendaEntry>> GetAgendaForDoctorAsync(
+        int doctorId,
+        DateTime rangeStart,
+        DateTime rangeEnd,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Start times of the doctor's active appointments in [<paramref name="rangeStart"/>, <paramref name="rangeEnd"/>).</summary>
     Task<IReadOnlyList<DateTime>> GetBookedStartsAsync(
         int doctorId,

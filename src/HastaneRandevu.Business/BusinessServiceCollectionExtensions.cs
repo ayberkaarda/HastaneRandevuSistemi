@@ -43,6 +43,8 @@ public static class BusinessServiceCollectionExtensions
         services.AddSingleton<IAppointmentService, AppointmentService>();
         services.AddSingleton<IScheduleService, ScheduleService>();
         services.AddSingleton<IAvailabilityService, AvailabilityService>();
+        services.AddSingleton<IReminderService, ReminderService>();
+        services.AddSingleton<IExportService, ExportService>();
         return services;
     }
 }

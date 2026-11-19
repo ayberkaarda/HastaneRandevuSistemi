@@ -471,6 +471,12 @@ public sealed partial class LoggingTests : IDisposable
         public Task<IReadOnlyList<AppointmentDetails>> GetActiveForDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<AppointmentDetails>>([]);
 
+        public Task<IReadOnlyList<AppointmentHistoryEntry>> GetHistoryForPatientAsync(int patientId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AppointmentHistoryEntry>>([]);
+
+        public Task<IReadOnlyList<AgendaEntry>> GetAgendaForDoctorAsync(int doctorId, DateTime rangeStart, DateTime rangeEnd, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AgendaEntry>>([]);
+
         public Task<IReadOnlyList<DateTime>> GetBookedStartsAsync(int doctorId, DateTime rangeStart, DateTime rangeEnd, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<DateTime>>([]);
 
