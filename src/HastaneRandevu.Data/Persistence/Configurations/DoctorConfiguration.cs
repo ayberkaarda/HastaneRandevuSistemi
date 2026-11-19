@@ -9,7 +9,10 @@ internal sealed class DoctorConfiguration : IEntityTypeConfiguration<Doctor>
     public void Configure(EntityTypeBuilder<Doctor> builder)
     {
         builder.ToTable("Doktorlar", table =>
-            table.HasCheckConstraint("CK_Doktorlar_BasarisizGiris", SchemaLimits.FailedLoginCheck));
+        {
+            table.HasCheckConstraint("CK_Doktorlar_BasarisizGiris", SchemaLimits.FailedLoginCheck);
+            table.HasCheckConstraint("CK_Doktorlar_SifreBicimi", SchemaLimits.PasswordFormatCheck);
+        });
 
         builder.HasKey(d => d.Id).HasName("PK_Doktorlar");
         builder.Property(d => d.Id).HasColumnName("DoktorID").ValueGeneratedOnAdd();
@@ -17,6 +20,7 @@ internal sealed class DoctorConfiguration : IEntityTypeConfiguration<Doctor>
         builder.Property(d => d.Branch).HasColumnName("Brans").HasMaxLength(SchemaLimits.BranchLength);
         builder.Property(d => d.NationalId).HasColumnName("TC").HasMaxLength(SchemaLimits.NationalIdLength).IsRequired();
         builder.Property(d => d.PasswordHash).HasColumnName("Sifre").HasMaxLength(SchemaLimits.PasswordLength).IsRequired();
+        builder.Property(d => d.PasswordFormat).HasColumnName("SifreBicimi");
         builder.Property(d => d.FailedLoginCount).HasColumnName("BasarisizGiris");
         builder.Property(d => d.LockoutEnd).HasColumnName("KilitBitis");
 

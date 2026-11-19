@@ -12,9 +12,13 @@ public sealed class Patient
 
     /// <summary>
     /// PBKDF2 hash of the password. Rows created by the original application hold the plain text
-    /// password until the first successful sign-in replaces it with a hash.
+    /// password until the first successful sign-in replaces it with a hash; <see cref="PasswordFormat"/>
+    /// tells which of the two it is.
     /// </summary>
     public string PasswordHash { get; set; } = string.Empty;
+
+    /// <summary>How <see cref="PasswordHash"/> is stored.</summary>
+    public PasswordFormat PasswordFormat { get; set; }
 
     /// <summary>Failed sign-in attempts since the last success or lockout.</summary>
     public int FailedLoginCount { get; set; }

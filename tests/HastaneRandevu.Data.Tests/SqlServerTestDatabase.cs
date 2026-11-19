@@ -61,6 +61,19 @@ internal sealed class SqlServerTestDatabase : IAsyncDisposable
     public Task<int> ScalarAsync(string sql, CancellationToken ct, params (string Name, object Value)[] parameters) =>
         ScalarAsync(ConnectionString, sql, ct, parameters);
 
+    public async Task<string?> TextAsync(string sql, CancellationToken ct, params (string Name, object Value)[] parameters)
+    {
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = new SqlCommand(sql, connection);
+        foreach (var (name, value) in parameters)
+        {
+            command.Parameters.AddWithValue(name, value);
+        }
+
+        return await command.ExecuteScalarAsync(ct) as string;
+    }
+
     public static async Task ExecuteAsync(
         string connectionString,
         string sql,

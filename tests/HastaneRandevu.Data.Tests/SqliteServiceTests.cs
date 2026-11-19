@@ -102,7 +102,7 @@ public sealed class SqliteServiceTests : IAsyncLifetime
         // As written by the original application: the password in plain text.
         await using (var context = _db.CreateContext())
         {
-            await context.Database.ExecuteSqlRawAsync("UPDATE Hastalar SET Sifre = 'eski1' WHERE TC = '10000000528'", Ct);
+            await context.Database.ExecuteSqlRawAsync("UPDATE Hastalar SET Sifre = 'eski1', SifreBicimi = 1 WHERE TC = '10000000528'", Ct);
         }
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => Auth.SignInPatientAsync("10000000528", "eski2", Ct));
@@ -110,8 +110,9 @@ public sealed class SqliteServiceTests : IAsyncLifetime
 
         await using (var context = _db.CreateContext())
         {
-            var stored = await context.Patients.Where(p => p.NationalId == "10000000528").Select(p => p.PasswordHash).SingleAsync(Ct);
-            Assert.StartsWith("PBKDF2-SHA256$1000$", stored, StringComparison.Ordinal);
+            var stored = await context.Patients.Where(p => p.NationalId == "10000000528").SingleAsync(Ct);
+            Assert.StartsWith("PBKDF2-SHA256$1000$", stored.PasswordHash, StringComparison.Ordinal);
+            Assert.Equal(PasswordFormat.Pbkdf2, stored.PasswordFormat);
         }
 
         await Auth.SignInPatientAsync("10000000528", "eski1", Ct);

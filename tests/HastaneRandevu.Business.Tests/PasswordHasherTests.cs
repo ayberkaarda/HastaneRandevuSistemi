@@ -1,4 +1,5 @@
 using HastaneRandevu.Business.Security;
+using HastaneRandevu.Domain.Entities;
 
 namespace HastaneRandevu.Business.Tests;
 
@@ -33,12 +34,32 @@ public sealed class PasswordHasherTests
     [Fact]
     public void Verify_LegacyPlainText_SucceedsOnlyWithRehashRequest()
     {
-        Assert.Equal(PasswordVerificationResult.SuccessRehashNeeded, _hasher.Verify("1234", "1234"));
+        const PasswordFormat Legacy = PasswordFormat.LegacyPlainText;
+        Assert.Equal(PasswordVerificationResult.SuccessRehashNeeded, _hasher.Verify("1234", "1234", Legacy));
 
         // The original application trimmed the password before storing and comparing it.
-        Assert.Equal(PasswordVerificationResult.SuccessRehashNeeded, _hasher.Verify(" 1234 ", "1234"));
-        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify("12345", "1234"));
-        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify("", ""));
+        Assert.Equal(PasswordVerificationResult.SuccessRehashNeeded, _hasher.Verify(" 1234 ", "1234", Legacy));
+        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify("12345", "1234", Legacy));
+        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify("", "", Legacy));
+    }
+
+    [Theory]
+    [InlineData("PBKDF2-SHA256$eski01")]
+    [InlineData("PBKDF2-SHA256$1000$a$b")]
+    public void Verify_LegacyPlainTextThatLooksLikeAHash_IsComparedAsPlainText(string legacy)
+    {
+        Assert.Equal(PasswordVerificationResult.SuccessRehashNeeded, _hasher.Verify(legacy, legacy, PasswordFormat.LegacyPlainText));
+        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify("eski01", legacy, PasswordFormat.LegacyPlainText));
+    }
+
+    [Fact]
+    public void Verify_StoredHashSentAsThePassword_Fails()
+    {
+        var stored = _hasher.Hash("Gizli.Sifre1");
+
+        // No plain text fallback: a hash value only verifies through the key derivation.
+        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify(stored, stored, PasswordFormat.Pbkdf2));
+        Assert.Equal(PasswordVerificationResult.Failed, _hasher.Verify("1234", "1234", PasswordFormat.Pbkdf2));
     }
 
     [Fact]

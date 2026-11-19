@@ -15,6 +15,9 @@ internal static class SchemaLimits
     public const int PasswordLength = 256;
 
     public const string FailedLoginCheck = "[BasarisizGiris] >= 0";
+
+    /// <summary>Values of <see cref="Domain.Entities.PasswordFormat"/>: 0 PBKDF2 hash, 1 legacy plain text.</summary>
+    public const string PasswordFormatCheck = "[SifreBicimi] IN (0, 1)";
     public const string StatusCheck = "[Durum] IN (0, 1)";
 
     /// <summary>Only active appointments occupy a doctor's slot; cancelled ones are kept as history.</summary>

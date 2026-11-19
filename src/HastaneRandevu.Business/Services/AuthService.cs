@@ -113,6 +113,7 @@ internal sealed class AuthService(
             FullName = name,
             NationalId = id!,
             PasswordHash = passwordHasher.Hash(password),
+            PasswordFormat = PasswordFormat.Pbkdf2,
         };
 
         try
@@ -155,7 +156,7 @@ internal sealed class AuthService(
             throw new BusinessRuleException(invalidMessage);
         }
 
-        var result = passwordHasher.Verify(password, account.PasswordHash);
+        var result = passwordHasher.Verify(password, account.PasswordHash, account.PasswordFormat);
         if (result == PasswordVerificationResult.Failed)
         {
             await accounts.RecordFailedLoginAsync(
@@ -171,7 +172,7 @@ internal sealed class AuthService(
         if (result == PasswordVerificationResult.SuccessRehashNeeded)
         {
             // Plain text passwords were trimmed by the original application before they were stored.
-            var legacy = !account.PasswordHash.StartsWith(PasswordHasher.Prefix, StringComparison.Ordinal);
+            var legacy = account.PasswordFormat == PasswordFormat.LegacyPlainText;
             newHash = passwordHasher.Hash(legacy ? password.Trim() : password);
         }
 

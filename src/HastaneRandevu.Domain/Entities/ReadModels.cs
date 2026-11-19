@@ -32,5 +32,6 @@ public sealed record AccountCredentials(
     string FullName,
     string NationalId,
     string PasswordHash,
+    PasswordFormat PasswordFormat,
     int FailedLoginCount,
     DateTime? LockoutEnd);

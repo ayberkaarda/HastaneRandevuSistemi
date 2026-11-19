@@ -25,6 +25,7 @@ internal sealed class PatientRepository(IDbContextFactory<HospitalDbContext> con
             FullName = patient.FullName,
             NationalId = patient.NationalId,
             PasswordHash = patient.PasswordHash,
+            PasswordFormat = patient.PasswordFormat,
         };
         db.Patients.Add(entity);
 

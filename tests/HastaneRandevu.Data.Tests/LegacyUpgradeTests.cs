@@ -1,3 +1,4 @@
+using HastaneRandevu.Business;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Data.Persistence;
 using Microsoft.Data.SqlClient;
@@ -74,6 +75,12 @@ public sealed class LegacyUpgradeTests
         Assert.Equal(1, await database.ScalarAsync(
             "SELECT COUNT(*) FROM dbo.__EFMigrationsHistory WHERE MigrationId LIKE N'%_InitialCreate'",
             ct));
+        Assert.Equal(1, await database.ScalarAsync(
+            "SELECT COUNT(*) FROM dbo.__EFMigrationsHistory WHERE MigrationId LIKE N'%_AddPasswordFormat'",
+            ct));
+        Assert.Equal(4, await database.ScalarAsync(
+            "SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE SifreBicimi = 1) + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE SifreBicimi = 1)",
+            ct));
         await AssertUpgradedSchemaAsync(database, ct);
 
         // Plain text passwords still work once and are replaced with hashes.
@@ -82,8 +89,8 @@ public sealed class LegacyUpgradeTests
         var doctor = await auth.SignInDoctorAsync("Dr. Diğer Doktor", "91011", ct);
         Assert.Equal(3, patient.AccountId);
         Assert.Equal(5, doctor.AccountId);
-        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 3 AND Sifre LIKE N'PBKDF2-SHA256$%'", ct));
-        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 6 AND Sifre = N'1234'", ct));
+        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 3 AND Sifre LIKE N'PBKDF2-SHA256$%' AND SifreBicimi = 0", ct));
+        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 6 AND Sifre = N'1234' AND SifreBicimi = 1", ct));
         await auth.SignInPatientAsync("20000000001", "sifre1", ct);
 
         // Existing appointments are listed for their owners, past ones included.
@@ -109,7 +116,7 @@ public sealed class LegacyUpgradeTests
             ct));
         Assert.Contains("CK_Randevular_Durum", status.Message, StringComparison.Ordinal);
         var nationalId = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync(
-            "INSERT dbo.Hastalar (Ad_Soyad, TC, Sifre, BasarisizGiris) VALUES (N'X', N'20000000002', N'-', 0)",
+            "INSERT dbo.Hastalar (Ad_Soyad, TC, Sifre, SifreBicimi, BasarisizGiris) VALUES (N'X', N'20000000002', N'-', 0, 0)",
             ct));
         Assert.Contains("IX_Hastalar_TC", nationalId.Message, StringComparison.Ordinal);
     }
@@ -152,6 +159,62 @@ public sealed class LegacyUpgradeTests
             SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE Sifre LIKE N'PBKDF2-SHA256$%' AND BasarisizGiris = 0)
                  + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE Sifre LIKE N'PBKDF2-SHA256$%' AND BasarisizGiris = 0)
             """,
+            ct));
+    }
+
+    /// <summary>
+    /// The original application let users pick any text, including text that starts like a stored
+    /// hash. The stored format column, not the value, decides how a password is checked.
+    /// </summary>
+    [Fact]
+    public async Task Initialize_LegacyPasswordWithHashPrefix_CanSignInAndUpgrade()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string PatientPassword = "PBKDF2-SHA256$eski01"; // 20 characters, not a valid hash
+        const string DoctorPassword = "PBKDF2-SHA256$1000$a$b";
+        await using var database = await SqlServerTestDatabase.CreateAsync(ct);
+        await database.ExecuteAsync(LegacySchema, ct);
+        await database.ExecuteAsync(
+            """
+            INSERT dbo.Hastalar (Ad_Soyad, TC, Sifre) VALUES (N'Önekli Hasta', N'20000000001', @patient);
+            INSERT dbo.Doktorlar (Ad_Soyad, Brans, TC, Sifre) VALUES (N'Dr. Önekli', N'Dahiliye', N'20000000003', @doctor);
+            """,
+            ct,
+            ("@patient", PatientPassword),
+            ("@doctor", DoctorPassword));
+
+        await using var provider = database.BuildServices();
+        await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        var auth = provider.GetRequiredService<IAuthService>();
+
+        // The upgrade marks every existing password as legacy plain text.
+        Assert.Equal(2, await database.ScalarAsync(
+            "SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE SifreBicimi = 1) + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE SifreBicimi = 1)",
+            ct));
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await auth.SignInPatientAsync("20000000001", PatientPassword, ct);
+            await auth.SignInDoctorAsync("Dr. Önekli", DoctorPassword, ct);
+        }
+
+        // The first sign-in replaced the value and its format together.
+        Assert.Equal(2, await database.ScalarAsync(
+            """
+            SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE SifreBicimi = 0 AND Sifre LIKE N'PBKDF2-SHA256$%' AND Sifre <> @patient)
+                 + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE SifreBicimi = 0 AND Sifre LIKE N'PBKDF2-SHA256$%' AND Sifre <> @doctor)
+            """,
+            ct,
+            ("@patient", PatientPassword),
+            ("@doctor", DoctorPassword)));
+
+        // Knowing the stored hash is not knowing the password: there is no plain text fallback.
+        var patientHash = await database.TextAsync("SELECT Sifre FROM dbo.Hastalar WHERE TC = N'20000000001'", ct);
+        var doctorHash = await database.TextAsync("SELECT Sifre FROM dbo.Doktorlar WHERE TC = N'20000000003'", ct);
+        await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInPatientAsync("20000000001", patientHash, ct));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInDoctorAsync("Dr. Önekli", doctorHash, ct));
+        Assert.Equal(2, await database.ScalarAsync(
+            "SELECT (SELECT SUM(BasarisizGiris) FROM dbo.Hastalar) + (SELECT SUM(BasarisizGiris) FROM dbo.Doktorlar)",
             ct));
     }
 
@@ -204,6 +267,9 @@ public sealed class LegacyUpgradeTests
         Assert.Equal(3, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
         Assert.Equal(2, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
         Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular", ct));
+        Assert.Equal(5, await database.ScalarAsync(
+            "SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE SifreBicimi = 0) + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE SifreBicimi = 0)",
+            ct));
         await AssertUpgradedSchemaAsync(database, ct);
     }
 
@@ -252,6 +318,9 @@ public sealed class LegacyUpgradeTests
         Assert.Equal(appointmentsBefore, await database.ScalarAsync(Appointments, ct));
         Assert.Equal(peopleBefore, await database.ScalarAsync(People, ct));
         Assert.Equal(rowsBefore, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular WHERE Durum = 0", ct));
+        Assert.Equal(0, await database.ScalarAsync(
+            "SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE SifreBicimi <> 1) + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE SifreBicimi <> 1)",
+            ct));
         await AssertUpgradedSchemaAsync(database, ct);
     }
 
@@ -266,6 +335,7 @@ public sealed class LegacyUpgradeTests
             "PK_Hastalar", "PK_Doktorlar", "PK_Randevular",
             "FK_Randevular_Hastalar", "FK_Randevular_Doktorlar",
             "CK_Hastalar_BasarisizGiris", "CK_Doktorlar_BasarisizGiris", "CK_Randevular_Durum",
+            "CK_Hastalar_SifreBicimi", "CK_Doktorlar_SifreBicimi",
         ];
         foreach (var name in expected)
         {

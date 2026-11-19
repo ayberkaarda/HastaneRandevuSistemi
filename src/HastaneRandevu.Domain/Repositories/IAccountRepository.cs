@@ -22,7 +22,8 @@ public interface IAccountRepository
 
     /// <summary>
     /// Clears the failed attempts and the lockout. When <paramref name="newPasswordHash"/> is given the
-    /// stored password is replaced with it (upgrade of a plain text or weaker hash).
+    /// stored password is replaced with it and its format becomes <see cref="PasswordFormat.Pbkdf2"/>
+    /// in the same statement (upgrade of a plain text or weaker hash).
     /// </summary>
     Task RecordSuccessfulLoginAsync(
         AccountRole role,

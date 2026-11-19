@@ -51,7 +51,7 @@ public sealed class AuthServiceTests
     public async Task SignInPatient_LegacyPasswordLongerThanTheRegistrationLimit_IsVerified()
     {
         var legacy = new string('x', PasswordPolicy.SignInMaxLength);
-        Setup(Account(legacy));
+        Setup(Account(legacy, format: PasswordFormat.LegacyPlainText));
         _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, It.IsNotNull<string>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
@@ -136,7 +136,7 @@ public sealed class AuthServiceTests
     [Fact]
     public async Task SignInPatient_LegacyPlainTextPassword_IsReplacedWithAHash()
     {
-        Setup(Account("sifre1"));
+        Setup(Account("sifre1", format: PasswordFormat.LegacyPlainText));
         string? stored = null;
         _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<AccountRole, int, string?, CancellationToken>((_, _, hash, _) => stored = hash)
@@ -154,7 +154,7 @@ public sealed class AuthServiceTests
     public async Task SignInDoctor_UsesTheNameAndTheDoctorRole()
     {
         _accounts.Setup(a => a.FindDoctorByNameAsync("Dr. Ada Örnek", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AccountCredentials(3, "Dr. Ada Örnek", "10000000146", _hasher.Hash("Demo.Doktor1"), 0, null));
+            .ReturnsAsync(new AccountCredentials(3, "Dr. Ada Örnek", "10000000146", _hasher.Hash("Demo.Doktor1"), PasswordFormat.Pbkdf2, 0, null));
         _accounts.Setup(a => a.RecordFailedLoginAsync(AccountRole.Doctor, 3, 5, Now.AddMinutes(15), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Doctor, 3, null, It.IsAny<CancellationToken>()))
@@ -263,8 +263,8 @@ public sealed class AuthServiceTests
             ? ("10000000450", "10000000528", "10000000696")
             : ("Dr. Açık Hesap", "Dr. Kilitli Hesap", "Dr. Olmayan Hesap");
         var hash = _hasher.Hash("Gizli.Sifre1");
-        SetupLookup(role, openKey, new AccountCredentials(7, "Açık", "10000000450", hash, 4, null));
-        SetupLookup(role, lockedKey, new AccountCredentials(8, "Kilitli", "10000000528", hash, 0, Now.AddMinutes(10)));
+        SetupLookup(role, openKey, new AccountCredentials(7, "Açık", "10000000450", hash, PasswordFormat.Pbkdf2, 4, null));
+        SetupLookup(role, lockedKey, new AccountCredentials(8, "Kilitli", "10000000528", hash, PasswordFormat.Pbkdf2, 0, Now.AddMinutes(10)));
         SetupLookup(role, unknownKey, null);
         _accounts.Setup(a => a.RecordFailedLoginAsync(role, 7, LoginPolicy.MaxFailedAttempts, Now.AddMinutes(15), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -315,8 +315,8 @@ public sealed class AuthServiceTests
         }
     }
 
-    private static AccountCredentials Account(string passwordHash, DateTime? lockoutEnd = null) =>
-        new(7, "Deniz Örnek", NationalId, passwordHash, 2, lockoutEnd);
+    private static AccountCredentials Account(string passwordHash, DateTime? lockoutEnd = null, PasswordFormat format = PasswordFormat.Pbkdf2) =>
+        new(7, "Deniz Örnek", NationalId, passwordHash, format, 2, lockoutEnd);
 
     private void Setup(AccountCredentials account) =>
         _accounts.Setup(a => a.FindPatientByNationalIdAsync(NationalId, It.IsAny<CancellationToken>())).ReturnsAsync(account);
@@ -332,10 +332,10 @@ public sealed class AuthServiceTests
 
         public string Hash(string password) => inner.Hash(password);
 
-        public PasswordVerificationResult Verify(string password, string stored)
+        public PasswordVerificationResult Verify(string password, string stored, PasswordFormat format)
         {
             VerifyCalls++;
-            return inner.Verify(password, stored);
+            return inner.Verify(password, stored, format);
         }
 
         public void SimulateVerification(string password)

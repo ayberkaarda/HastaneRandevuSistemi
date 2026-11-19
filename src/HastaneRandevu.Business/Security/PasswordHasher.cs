@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using HastaneRandevu.Domain.Entities;
 
 namespace HastaneRandevu.Business.Security;
 
@@ -18,7 +19,11 @@ public interface IPasswordHasher
 {
     string Hash(string password);
 
-    PasswordVerificationResult Verify(string password, string stored);
+    /// <summary>
+    /// Checks <paramref name="password"/> against the stored value, read as <paramref name="format"/>.
+    /// A value is never reinterpreted in another format: a hash that does not verify fails.
+    /// </summary>
+    PasswordVerificationResult Verify(string password, string stored, PasswordFormat format);
 
     /// <summary>
     /// Spends about as much time as a real verification without checking anything, so a sign-in for an
@@ -29,8 +34,9 @@ public interface IPasswordHasher
 
 /// <summary>
 /// PBKDF2 (HMAC-SHA256) password hashes stored as
-/// <c>PBKDF2-SHA256${iterations}${salt base64}${hash base64}</c>. Values without that prefix are plain
-/// text passwords written by the original application; they verify once and are then rehashed.
+/// <c>PBKDF2-SHA256${iterations}${salt base64}${hash base64}</c>. Plain text passwords written by the
+/// original application (<see cref="PasswordFormat.LegacyPlainText"/>) verify once and are then rehashed.
+/// The format comes from the account, never from the shape of the stored value.
 /// </summary>
 public sealed class PasswordHasher : IPasswordHasher
 {
@@ -68,6 +74,20 @@ public sealed class PasswordHasher : IPasswordHasher
             $"{Prefix}{_iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}");
     }
 
+    public PasswordVerificationResult Verify(string password, string stored, PasswordFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(password);
+        ArgumentNullException.ThrowIfNull(stored);
+
+        return format switch
+        {
+            PasswordFormat.Pbkdf2 => Verify(password, stored),
+            PasswordFormat.LegacyPlainText => VerifyLegacyPlainText(password, stored),
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "Unknown password format."),
+        };
+    }
+
+    /// <summary>Checks <paramref name="password"/> against a stored PBKDF2 hash.</summary>
     public PasswordVerificationResult Verify(string password, string stored)
     {
         ArgumentNullException.ThrowIfNull(password);
@@ -75,7 +95,9 @@ public sealed class PasswordHasher : IPasswordHasher
 
         if (!stored.StartsWith(Prefix, StringComparison.Ordinal))
         {
-            return VerifyLegacyPlainText(password, stored);
+            // Not a hash of this application; costs the same as a real check.
+            SimulateVerification(password);
+            return PasswordVerificationResult.Failed;
         }
 
         var parts = stored[Prefix.Length..].Split('$');

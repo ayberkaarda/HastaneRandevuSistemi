@@ -15,7 +15,7 @@ internal sealed class AccountRepository(IDbContextFactory<HospitalDbContext> con
         return await db.Patients
             .AsNoTracking()
             .Where(p => p.NationalId == nationalId)
-            .Select(p => new AccountCredentials(p.Id, p.FullName, p.NationalId, p.PasswordHash, p.FailedLoginCount, p.LockoutEnd))
+            .Select(p => new AccountCredentials(p.Id, p.FullName, p.NationalId, p.PasswordHash, p.PasswordFormat, p.FailedLoginCount, p.LockoutEnd))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -28,7 +28,7 @@ internal sealed class AccountRepository(IDbContextFactory<HospitalDbContext> con
         return await db.Doctors
             .AsNoTracking()
             .Where(d => d.FullName == fullName)
-            .Select(d => new AccountCredentials(d.Id, d.FullName, d.NationalId, d.PasswordHash, d.FailedLoginCount, d.LockoutEnd))
+            .Select(d => new AccountCredentials(d.Id, d.FullName, d.NationalId, d.PasswordHash, d.PasswordFormat, d.FailedLoginCount, d.LockoutEnd))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -83,7 +83,8 @@ internal sealed class AccountRepository(IDbContextFactory<HospitalDbContext> con
                     s => s
                         .SetProperty(p => p.FailedLoginCount, 0)
                         .SetProperty(p => p.LockoutEnd, (DateTime?)null)
-                        .SetProperty(p => p.PasswordHash, p => newPasswordHash ?? p.PasswordHash),
+                        .SetProperty(p => p.PasswordHash, p => newPasswordHash ?? p.PasswordHash)
+                        .SetProperty(p => p.PasswordFormat, p => newPasswordHash != null ? PasswordFormat.Pbkdf2 : p.PasswordFormat),
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -95,7 +96,8 @@ internal sealed class AccountRepository(IDbContextFactory<HospitalDbContext> con
                     s => s
                         .SetProperty(d => d.FailedLoginCount, 0)
                         .SetProperty(d => d.LockoutEnd, (DateTime?)null)
-                        .SetProperty(d => d.PasswordHash, d => newPasswordHash ?? d.PasswordHash),
+                        .SetProperty(d => d.PasswordHash, d => newPasswordHash ?? d.PasswordHash)
+                        .SetProperty(d => d.PasswordFormat, d => newPasswordHash != null ? PasswordFormat.Pbkdf2 : d.PasswordFormat),
                     cancellationToken)
                 .ConfigureAwait(false);
         }

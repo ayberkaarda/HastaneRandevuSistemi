@@ -13,9 +13,10 @@ namespace HastaneRandevu.Data.Persistence;
 /// <summary>
 /// Adopts a database created by the original application (Hastalar, Doktorlar and Randevular without
 /// an EF Core migrations history). The existing rows, identity values and plain text passwords are
-/// kept (passwords are hashed on each account's next successful sign-in); the missing columns,
-/// constraints and indexes of <see cref="InitialCreate"/> are added and the migration is recorded as
-/// applied, so its sample data is never inserted into such a database.
+/// kept and marked as legacy plain text (they are hashed on each account's next successful sign-in);
+/// the missing columns, constraints and indexes of <see cref="InitialCreate"/> and
+/// <see cref="AddPasswordFormat"/> are added and both migrations are recorded as applied, so the
+/// sample data is never inserted into such a database.
 /// </summary>
 /// <remarks>
 /// Every step checks the current schema first, and the whole upgrade runs in one transaction under
@@ -25,9 +26,20 @@ internal static class LegacySchemaUpgrader
 {
     private static readonly string[] LegacyTables = ["Hastalar", "Doktorlar", "Randevular"];
 
-    /// <summary>Identifier of the migration that a legacy database is upgraded to.</summary>
-    internal static string BaselineMigrationId { get; } =
-        typeof(InitialCreate).GetCustomAttribute<MigrationAttribute>()!.Id;
+    /// <summary>Identifier of the first migration; a database without it in its history may be legacy.</summary>
+    internal static string BaselineMigrationId { get; } = MigrationId<InitialCreate>();
+
+    /// <summary>
+    /// The migrations whose schema the upgrade creates itself and records as applied. Besides the
+    /// baseline this includes <see cref="AddPasswordFormat"/>, because only the upgrade knows that
+    /// every existing password is plain text and has to be marked as such.
+    /// </summary>
+    internal static IReadOnlyList<string> AdoptedMigrationIds { get; } =
+        [BaselineMigrationId, MigrationId<AddPasswordFormat>()];
+
+    private static string MigrationId<TMigration>()
+        where TMigration : Migration =>
+        typeof(TMigration).GetCustomAttribute<MigrationAttribute>()!.Id;
 
     /// <summary>
     /// Upgrades a legacy database in place. Returns <see langword="false"/> when there is nothing to
@@ -69,7 +81,7 @@ internal static class LegacySchemaUpgrader
                     await ExecuteAsync(context, statement, token).ConfigureAwait(false);
                 }
 
-                await MarkBaselineAppliedAsync(context, token).ConfigureAwait(false);
+                await MarkAdoptedMigrationsAppliedAsync(context, token).ConfigureAwait(false);
                 await transaction.CommitAsync(token).ConfigureAwait(false);
                 return true;
             },
@@ -216,7 +228,8 @@ internal static class LegacySchemaUpgrader
     }
 
     /// <summary>
-    /// Brings the legacy tables to the shape created by <see cref="InitialCreate"/>. Each statement
+    /// Brings the legacy tables to the shape created by <see cref="InitialCreate"/> and
+    /// <see cref="AddPasswordFormat"/>. Each statement
     /// is guarded so it only runs when the corresponding part of the schema is missing.
     /// </summary>
     private static readonly string[] UpgradeStatements =
@@ -246,6 +259,11 @@ internal static class LegacySchemaUpgrader
         AddColumnWithInitialValue("Randevular", "Durum", "INT NOT NULL", "0"),
         AddColumn("Randevular", "IptalZamani", "DATETIME2 NULL"),
 
+        // AddPasswordFormat: every password of the original application is plain text (format 1),
+        // whatever it looks like. A successful sign-in replaces value and format together.
+        AddColumnWithInitialValue("Hastalar", "SifreBicimi", "INT NOT NULL", "1"),
+        AddColumnWithInitialValue("Doktorlar", "SifreBicimi", "INT NOT NULL", "1"),
+
         RenamePrimaryKey("Hastalar", "PK_Hastalar"),
         RenamePrimaryKey("Doktorlar", "PK_Doktorlar"),
         RenamePrimaryKey("Randevular", "PK_Randevular"),
@@ -256,6 +274,8 @@ internal static class LegacySchemaUpgrader
         AddCheck("Hastalar", "CK_Hastalar_BasarisizGiris", SchemaLimits.FailedLoginCheck),
         AddCheck("Doktorlar", "CK_Doktorlar_BasarisizGiris", SchemaLimits.FailedLoginCheck),
         AddCheck("Randevular", "CK_Randevular_Durum", SchemaLimits.StatusCheck),
+        AddCheck("Hastalar", "CK_Hastalar_SifreBicimi", SchemaLimits.PasswordFormatCheck),
+        AddCheck("Doktorlar", "CK_Doktorlar_SifreBicimi", SchemaLimits.PasswordFormatCheck),
 
         CreateIndex("Hastalar", "IX_Hastalar_TC", "CREATE UNIQUE INDEX IX_Hastalar_TC ON dbo.Hastalar (TC)"),
         CreateIndex("Doktorlar", "IX_Doktorlar_TC", "CREATE UNIQUE INDEX IX_Doktorlar_TC ON dbo.Doktorlar (TC)"),
@@ -350,14 +370,17 @@ internal static class LegacySchemaUpgrader
             EXEC(N'{createStatement.Replace("'", "''", StringComparison.Ordinal)}');
         """;
 
-    private static async Task MarkBaselineAppliedAsync(HospitalDbContext db, CancellationToken cancellationToken)
+    private static async Task MarkAdoptedMigrationsAppliedAsync(HospitalDbContext db, CancellationToken cancellationToken)
     {
         var history = db.GetService<IHistoryRepository>();
         await ExecuteAsync(db, history.GetCreateIfNotExistsScript(), cancellationToken).ConfigureAwait(false);
-        await ExecuteAsync(
-            db,
-            history.GetInsertScript(new HistoryRow(BaselineMigrationId, ProductInfo.GetVersion())),
-            cancellationToken).ConfigureAwait(false);
+        foreach (var migrationId in AdoptedMigrationIds)
+        {
+            await ExecuteAsync(
+                db,
+                history.GetInsertScript(new HistoryRow(migrationId, ProductInfo.GetVersion())),
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static Task<int> ScalarAsync(HospitalDbContext db, string sql, CancellationToken cancellationToken) =>

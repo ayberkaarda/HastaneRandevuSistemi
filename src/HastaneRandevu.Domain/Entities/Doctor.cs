@@ -17,6 +17,9 @@ public sealed class Doctor
     /// <inheritdoc cref="Patient.PasswordHash"/>
     public string PasswordHash { get; set; } = string.Empty;
 
+    /// <inheritdoc cref="Patient.PasswordFormat"/>
+    public PasswordFormat PasswordFormat { get; set; }
+
     /// <inheritdoc cref="Patient.FailedLoginCount"/>
     public int FailedLoginCount { get; set; }
 

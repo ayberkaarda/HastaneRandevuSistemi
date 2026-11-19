@@ -121,7 +121,7 @@ public sealed class SqlServerConcurrencyTests
         {
             // Format-only placeholder ids; the database does not check the checksum.
             await database.ExecuteAsync(
-                "INSERT dbo.Hastalar (Ad_Soyad, TC, Sifre, BasarisizGiris) VALUES (@name, @tc, N'-', 0)",
+                "INSERT dbo.Hastalar (Ad_Soyad, TC, Sifre, SifreBicimi, BasarisizGiris) VALUES (@name, @tc, N'-', 0, 0)",
                 ct,
                 ("@name", "Yarış Hastası " + i),
                 ("@tc", "2000000" + i.ToString("0000", System.Globalization.CultureInfo.InvariantCulture)));
