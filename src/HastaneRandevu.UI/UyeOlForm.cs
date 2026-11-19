@@ -49,7 +49,7 @@ namespace HastaneRandevu.UI
             SetSidePanel(
                 new BrandPanel(
                     "Hesabınızı oluşturun; randevularınızı tek yerden yönetin.",
-                    (Glyphs.Lock, "Şifreniz güvenli biçimde saklanır, kimseyle paylaşılmaz."),
+                    (Glyphs.Lock, "Şifreniz açık metin olarak değil, özetlenerek saklanır."),
                     (Glyphs.Person, "Kimlik numaranız ekranlarda maskelenerek gösterilir."),
                     (Glyphs.Calendar, "Kayıttan sonra hasta girişinden hemen randevu alabilirsiniz.")),
                 Sizes.BrandPanelWidth);
