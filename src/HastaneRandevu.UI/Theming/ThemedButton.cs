@@ -24,8 +24,12 @@ internal sealed class ThemedButton : Button
 {
     private const float GlyphPoints = 10F;
 
+    /// <summary>Logical width of the glyph and the gap after it.</summary>
+    private const int GlyphRoom = 22;
+
     private bool _hover;
     private bool _pressed;
+    private string _glyph = string.Empty;
 
     public ThemedButton(ButtonKind kind = ButtonKind.Secondary)
     {
@@ -58,15 +62,19 @@ internal sealed class ThemedButton : Button
 
     /// <summary>Icon font character drawn before the text; none when empty or under high contrast.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public string Glyph { get; set; } = string.Empty;
-
-    private bool DrawsGlyph => !Theme.Current.IsHighContrast && Glyph.Length > 0 && Theme.Fonts.Glyph(GlyphPoints) is not null;
-
-    public override Size GetPreferredSize(Size proposedSize)
+    public string Glyph
     {
-        var size = base.GetPreferredSize(proposedSize);
-        return DrawsGlyph ? new Size(size.Width + Theme.Px(this, 22), size.Height) : size;
+        get => _glyph;
+        set
+        {
+            _glyph = value ?? string.Empty;
+
+            // The glyph takes room on the left, so the automatic size keeps the whole text.
+            Padding = new Padding(DrawsGlyph ? Spacing.M + GlyphRoom : Spacing.M, 0, Spacing.M, 0);
+        }
     }
+
+    private bool DrawsGlyph => !Theme.Current.IsHighContrast && _glyph.Length > 0 && Theme.Fonts.Glyph(GlyphPoints) is not null;
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -147,7 +155,7 @@ internal sealed class ThemedButton : Button
         // Glyph and text are centered together as one group.
         var glyphWidth = Theme.Px(this, 16);
         var gap = Theme.Px(this, 6);
-        var textWidth = TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags).Width;
+        var textWidth = TextRenderer.MeasureText(g, Text, Font, Size.Empty, TextFormatFlags.SingleLine | (ShowKeyboardCues ? 0 : TextFormatFlags.HidePrefix)).Width;
         var left = Math.Max(Theme.Px(this, Spacing.S), (Width - (glyphWidth + gap + textWidth)) / 2);
         Painting.DrawGlyph(g, Glyph, Theme.Fonts.Glyph(GlyphPoints), new Rectangle(left, 0, glyphWidth, Height), Kind == ButtonKind.Primary ? text : Enabled ? p.AccentText : p.TextDisabled);
         TextRenderer.DrawText(g, Text, Font, new Rectangle(left + glyphWidth + gap, 0, Math.Max(0, Width - left - glyphWidth - gap), Height), text, flags);
