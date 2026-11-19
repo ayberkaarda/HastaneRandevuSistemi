@@ -32,6 +32,11 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Erteleme** ("Ertele"): kendi randevusu aynı doktorun boş bir dilimine tek ve atomik bir adımda taşınır (iptal
   edilip yeniden alınmaz). Randevu başlamamış ve en az `Appointments:RescheduleCutoffHours` saat uzakta olmalıdır
   (varsayılan 2); yeni saat randevu alma kurallarına uyar.
+- ✅ **Hatırlatmalar**: girişten sonra `Appointments:ReminderLeadHours` (varsayılan 24) saat içinde başlayan
+  randevular pencere içinde ve `Appointments:ShowReminderBalloon` açıksa bir kez, odağı hiç almayan bir bildirim
+  balonu olarak gösterilir.
+- ✅ **Geçmişi dışa aktarma** ("Geçmişi Dışa Aktar"): hastanın iptal edilenler dahil kendi randevuları CSV olarak
+  (UTF-8 BOM, `;` ayırıcı, formül enjeksiyonu önlenmiş, T.C. Kimlik No maskeli).
 
 ### Doktor paneli
 
@@ -41,6 +46,8 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Çalışma programı** ("Çalışma Programım"): doktorun kendi çalışma günleri ve saatleri (yarım saatlik
   adımlarla, 00:00-24:00) ile izin ve tatil günleri. Mevcut randevular hiçbir zaman değiştirilmez; izin gününe veya
   yeni saatlerin dışına düşenler uyarı olarak listelenir.
+- ✅ **Günlük ajanda** ("Ajandayı Dışa Aktar"): doktorun seçilen günkü randevuları yazdırılabilir bir HTML sayfası
+  olarak (betik yok, kısıtlayıcı içerik güvenlik politikası, tüm değerler HTML kodlanmış, T.C. Kimlik No'lar maskeli).
 
 ### Randevu kuralları
 
@@ -177,13 +184,17 @@ veren Türkçe bir mesajla uygulamayı durdurur:
 
 ```json
 "Appointments": {
-  "RescheduleCutoffHours": 2
+  "RescheduleCutoffHours": 2,
+  "ReminderLeadHours": 24,
+  "ShowReminderBalloon": true
 }
 ```
 
 | Ayar | Anlamı | İzin verilen |
 |---|---|---|
 | `RescheduleCutoffHours` | Randevu, başlamasına bu kadar saat kalana kadar ertelenebilir | 0-168 |
+| `ReminderLeadHours` | Bu kadar saat içinde başlayan randevular girişten sonra hatırlatılır | 1-168 |
+| `ShowReminderBalloon` | Hatırlatmalar ayrıca bildirim balonu olarak da gösterilir (odağı almaz) | `true` / `false` |
 
 ### 2. Çalıştırma
 

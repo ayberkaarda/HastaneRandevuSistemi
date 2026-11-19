@@ -33,6 +33,11 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Rescheduling** ("Ertele", Reschedule): an own appointment is moved to a free slot of the same doctor in one
   atomic step (no cancellation and no new appointment). It must not have started and must be at least
   `Appointments:RescheduleCutoffHours` hours away (default 2); the new time follows the booking rules.
+- ✅ **Reminders**: after sign-in the appointments starting within `Appointments:ReminderLeadHours` (default 24) are
+  shown inside the window and, if `Appointments:ShowReminderBalloon` is on, once as a notification balloon that never
+  takes the focus.
+- ✅ **History export** ("Geçmişi Dışa Aktar", Export History): the patient's own appointments, cancelled ones
+  included, as CSV (UTF-8 with BOM, `;` separator, formula injection neutralised, national id masked).
 
 ### Doctor panel
 
@@ -42,6 +47,9 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Working schedule** ("Çalışma Programım", My Schedule): the doctor's own working days and hours (30 minute
   steps, 00:00-24:00) and leave or holiday days. Existing appointments are never changed; those that fall on a leave
   day or outside the new hours are listed as warnings.
+- ✅ **Daily agenda** ("Ajandayı Dışa Aktar", Export Agenda): the doctor's appointments of a chosen day as a
+  printable HTML page (no scripts, a restrictive content security policy, every value HTML encoded, national ids
+  masked).
 
 ### Appointment rules
 
@@ -177,13 +185,17 @@ a Turkish message that names the setting:
 
 ```json
 "Appointments": {
-  "RescheduleCutoffHours": 2
+  "RescheduleCutoffHours": 2,
+  "ReminderLeadHours": 24,
+  "ShowReminderBalloon": true
 }
 ```
 
 | Setting | Meaning | Allowed |
 |---|---|---|
 | `RescheduleCutoffHours` | An appointment can be rescheduled until this many hours before it starts | 0-168 |
+| `ReminderLeadHours` | Appointments starting within this many hours are announced after sign-in | 1-168 |
+| `ShowReminderBalloon` | Also show reminders as a notification balloon (never takes the focus) | `true` / `false` |
 
 ### 2. Running
 

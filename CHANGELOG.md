@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Reminders of upcoming appointments after sign-in (in the window, and once as a balloon that takes no focus;
+  `Appointments:ReminderLeadHours` and `Appointments:ShowReminderBalloon`), the patient's history as CSV (UTF-8 BOM,
+  `;`, formula injection neutralised) and the doctor's daily agenda as printable HTML (no scripts, CSP, every value
+  encoded). Exports go through a temporary file, mask national ids and log nothing of their content.
 - Doctor search by name and branch, a month or week calendar of free and full days per doctor and a first free slot
   finder, all computed in the business layer (leave days, full days and the 90 day window are tested at their limits).
 - Rescheduling: a patient moves their own appointment to a free slot of the same doctor in one conditional update

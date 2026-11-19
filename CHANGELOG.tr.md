@@ -9,6 +9,11 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
+- Girişten sonra yaklaşan randevu hatırlatmaları (pencere içinde ve bir kez odağı almayan bir balon olarak;
+  `Appointments:ReminderLeadHours` ve `Appointments:ShowReminderBalloon`), hastanın geçmişi CSV olarak (UTF-8 BOM, `;`,
+  formül enjeksiyonu önlenmiş) ve doktorun günlük ajandası yazdırılabilir HTML olarak (betik yok, CSP, tüm değerler
+  kodlanmış). Dışa aktarımlar geçici dosya üzerinden yazılır, T.C. Kimlik No'yu maskeler ve içeriklerinden hiçbir şey
+  günlüğe yazılmaz.
 - Ada ve branşa göre doktor arama, doktor başına boş ve dolu günleri gösteren ay/hafta takvimi ve ilk boş randevu
   bulucu; hepsi iş katmanında hesaplanır (izin günü, dolu gün ve 90 günlük ufuk sınırlarında test edilir).
 - Erteleme: hasta kendi randevusunu aynı doktorun boş bir dilimine tek bir koşullu güncellemeyle taşır (iptal edip
