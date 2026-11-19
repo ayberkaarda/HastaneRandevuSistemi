@@ -70,8 +70,9 @@ public sealed class AuthServiceTests
 
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInPatientAsync(NationalId, "Gizli.Sifre1", Ct));
 
-        Assert.Equal(AuthService.LockedMessage(TimeSpan.FromMinutes(14.5)), error.Message);
+        Assert.Equal(AuthService.PatientCredentialsInvalid, error.Message);
         Assert.Contains("15 dakika", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("14", error.Message, StringComparison.Ordinal);
 
         // Neither a failure nor a success is recorded while the lock lasts.
         _accounts.Verify(a => a.FindPatientByNationalIdAsync(NationalId, It.IsAny<CancellationToken>()), Times.Once);
@@ -226,6 +227,68 @@ public sealed class AuthServiceTests
         Assert.Equal(AuthService.NationalIdTaken, error.Message);
     }
 
+    [Theory]
+    [InlineData(AccountRole.Patient)]
+    [InlineData(AccountRole.Doctor)]
+    public async Task SignIn_LockedUnknownAndWrongPassword_HaveEquivalentPublicFailure(AccountRole role)
+    {
+        // Lookup keys: an open account, a locked one and one that does not exist.
+        var (openKey, lockedKey, unknownKey) = role == AccountRole.Patient
+            ? ("10000000450", "10000000528", "10000000696")
+            : ("Dr. Açık Hesap", "Dr. Kilitli Hesap", "Dr. Olmayan Hesap");
+        var hash = _hasher.Hash("Gizli.Sifre1");
+        SetupLookup(role, openKey, new AccountCredentials(7, "Açık", "10000000450", hash, 4, null));
+        SetupLookup(role, lockedKey, new AccountCredentials(8, "Kilitli", "10000000528", hash, 0, Now.AddMinutes(10)));
+        SetupLookup(role, unknownKey, null);
+        _accounts.Setup(a => a.RecordFailedLoginAsync(role, 7, LoginPolicy.MaxFailedAttempts, Now.AddMinutes(15), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var hasher = new CountingHasher(_hasher);
+        var service = new AuthService(_accounts.Object, _patients.Object, hasher, _time);
+
+        async Task<(string Message, int Simulated, int Verified)> AttemptAsync(string key, string password)
+        {
+            var (simulated, verified) = (hasher.SimulateCalls, hasher.VerifyCalls);
+            var error = await Assert.ThrowsAsync<BusinessRuleException>(() => role == AccountRole.Patient
+                ? service.SignInPatientAsync(key, password, Ct)
+                : service.SignInDoctorAsync(key, password, Ct));
+            return (error.Message, hasher.SimulateCalls - simulated, hasher.VerifyCalls - verified);
+        }
+
+        var unknown = await AttemptAsync(unknownKey, "yanlis");
+        var lockedWrong = await AttemptAsync(lockedKey, "yanlis");
+        var lockedRight = await AttemptAsync(lockedKey, "Gizli.Sifre1");
+        var wrong = await AttemptAsync(openKey, "yanlis");
+
+        var expected = role == AccountRole.Patient ? AuthService.PatientCredentialsInvalid : AuthService.DoctorCredentialsInvalid;
+        Assert.All([unknown, lockedWrong, lockedRight, wrong], r => Assert.Equal(expected, r.Message));
+
+        // Every refusal costs one key derivation: the real one for an open account, a simulated one otherwise.
+        Assert.Equal((1, 0), (unknown.Simulated, unknown.Verified));
+        Assert.Equal((1, 0), (lockedWrong.Simulated, lockedWrong.Verified));
+        Assert.Equal((1, 0), (lockedRight.Simulated, lockedRight.Verified));
+        Assert.Equal((0, 1), (wrong.Simulated, wrong.Verified));
+
+        // Only the open account's failure is written; the locked account's counter is left alone.
+        _accounts.Verify(
+            a => a.RecordFailedLoginAsync(role, 7, LoginPolicy.MaxFailedAttempts, Now.AddMinutes(15), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _accounts.Verify(
+            a => a.RecordFailedLoginAsync(It.IsAny<AccountRole>(), 8, It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    private void SetupLookup(AccountRole role, string key, AccountCredentials? account)
+    {
+        if (role == AccountRole.Patient)
+        {
+            _accounts.Setup(a => a.FindPatientByNationalIdAsync(key, It.IsAny<CancellationToken>())).ReturnsAsync(account);
+        }
+        else
+        {
+            _accounts.Setup(a => a.FindDoctorByNameAsync(key, It.IsAny<CancellationToken>())).ReturnsAsync(account);
+        }
+    }
+
     private static AccountCredentials Account(string passwordHash, DateTime? lockoutEnd = null) =>
         new(7, "Deniz Örnek", NationalId, passwordHash, 2, lockoutEnd);
 
@@ -233,4 +296,26 @@ public sealed class AuthServiceTests
         _accounts.Setup(a => a.FindPatientByNationalIdAsync(NationalId, It.IsAny<CancellationToken>())).ReturnsAsync(account);
 
     private AuthService Service() => new(_accounts.Object, _patients.Object, _hasher, _time);
+
+    /// <summary>Counts how often a real key derivation and a simulated one are run.</summary>
+    private sealed class CountingHasher(IPasswordHasher inner) : IPasswordHasher
+    {
+        public int VerifyCalls { get; private set; }
+
+        public int SimulateCalls { get; private set; }
+
+        public string Hash(string password) => inner.Hash(password);
+
+        public PasswordVerificationResult Verify(string password, string stored)
+        {
+            VerifyCalls++;
+            return inner.Verify(password, stored);
+        }
+
+        public void SimulateVerification(string password)
+        {
+            SimulateCalls++;
+            inner.SimulateVerification(password);
+        }
+    }
 }

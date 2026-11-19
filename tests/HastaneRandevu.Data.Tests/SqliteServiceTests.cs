@@ -67,7 +67,7 @@ public sealed class SqliteServiceTests : IAsyncLifetime
         }
 
         var locked = await Assert.ThrowsAsync<BusinessRuleException>(() => Auth.SignInPatientAsync(SeedPatientId, "Demo.Hasta1", Ct));
-        Assert.Contains("15 dakika", locked.Message, StringComparison.Ordinal);
+        Assert.Equal(AuthService.PatientCredentialsInvalid, locked.Message);
 
         _db.Clock.Advance(TimeSpan.FromMinutes(14));
         await Assert.ThrowsAsync<BusinessRuleException>(() => Auth.SignInPatientAsync(SeedPatientId, "Demo.Hasta1", Ct));

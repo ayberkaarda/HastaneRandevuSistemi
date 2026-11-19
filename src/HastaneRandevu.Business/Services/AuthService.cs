@@ -29,15 +29,22 @@ internal sealed class AuthService(
     internal const int FullNameMaxLength = 80;
 
     internal const string PatientInputRequired = "Lütfen geçerli TC ve şifre giriniz.";
-    internal const string PatientCredentialsInvalid = "TC veya şifre hatalı. Lütfen tekrar deneyin.";
     internal const string DoctorInputRequired = "Lütfen tüm alanları doldurun.";
-    internal const string DoctorCredentialsInvalid = "Doktor adı veya şifre hatalı.";
+
+    // A locked account gets the same answer as wrong credentials, so the lock state is not disclosed
+    // before the user has proven who they are; the lockout rule itself is stated for everyone.
+    internal static readonly string PatientCredentialsInvalid = "TC veya şifre hatalı. " + LockoutNotice;
+    internal static readonly string DoctorCredentialsInvalid = "Doktor adı veya şifre hatalı. " + LockoutNotice;
     internal const string FullNameInvalid = "Ad soyad boş bırakılamaz ve en fazla 80 karakter olabilir.";
     internal const string NationalIdInvalid = "Lütfen geçerli bir T.C. Kimlik No giriniz.";
     internal const string NationalIdTaken = "Bu T.C. Kimlik No ile kayıtlı bir hasta zaten var.";
     internal static readonly string PasswordInvalid = string.Create(
         CultureInfo.InvariantCulture,
         $"Şifre en az {PasswordPolicy.MinLength}, en fazla {PasswordPolicy.MaxLength} karakter olmalıdır.");
+
+    private static string LockoutNotice => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{LoginPolicy.MaxFailedAttempts} hatalı denemeden sonra giriş {LoginPolicy.LockoutDuration.TotalMinutes:0} dakika engellenir.");
 
     public async Task<UserSession> SignInPatientAsync(
         string? nationalId,
@@ -132,9 +139,12 @@ internal sealed class AuthService(
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        if (account.LockoutEnd is { } lockoutEnd && lockoutEnd > now)
+        if (account.LockoutEnd > now)
         {
-            throw new BusinessRuleException(LockedMessage(lockoutEnd - now));
+            // Same answer and about the same cost as a wrong password; nothing is written, so the
+            // lock neither grows nor ends early.
+            passwordHasher.SimulateVerification(password);
+            throw new BusinessRuleException(invalidMessage);
         }
 
         var result = passwordHasher.Verify(password, account.PasswordHash);
@@ -160,13 +170,5 @@ internal sealed class AuthService(
         await accounts.RecordSuccessfulLoginAsync(role, account.Id, newHash, cancellationToken).ConfigureAwait(false);
 
         return new UserSession(role, account.Id, account.FullName, NationalIdNumber.Mask(account.NationalId));
-    }
-
-    internal static string LockedMessage(TimeSpan remaining)
-    {
-        var minutes = Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes));
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"Çok sayıda hatalı giriş denemesi yapıldı. Hesap {minutes} dakika sonra yeniden denenebilir.");
     }
 }

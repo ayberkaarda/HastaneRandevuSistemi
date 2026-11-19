@@ -108,7 +108,10 @@ public sealed class SqlServerConcurrencyTests
             "SELECT COUNT(*) FROM dbo.Hastalar WHERE TC = N'10000000450' AND KilitBitis IS NOT NULL AND BasarisizGiris = 0",
             ct));
         var locked = await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInPatientAsync("10000000450", "Demo.Hasta1", ct));
-        Assert.Contains("dakika", locked.Message, StringComparison.Ordinal);
+        Assert.Equal(AuthService.PatientCredentialsInvalid, locked.Message);
+        Assert.Equal(1, await database.ScalarAsync(
+            "SELECT COUNT(*) FROM dbo.Hastalar WHERE TC = N'10000000450' AND KilitBitis IS NOT NULL AND BasarisizGiris = 0",
+            ct));
     }
 
     private static async Task<IReadOnlyList<int>> AddPatientsAsync(SqlServerTestDatabase database, int count, CancellationToken ct)
