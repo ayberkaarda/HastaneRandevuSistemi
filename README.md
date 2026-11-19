@@ -24,20 +24,6 @@ Bu proje, **C#** ve **SQL Server** kullanılarak geliştirilmiş basit bir *Hast
 - Doktor giriş yaptıktan sonra **kendi hastaları** ve **randevu tarihleri** listelenir.
 - İlgili randevular istenirse iptal edilebilir.
 
-## 🖼️ Ekran Görüntüleri
-
-### Hasta Giriş Ekranı
-![Hasta Giriş](screenshots/hasta_giris.png)
-
-### Hasta Kayıt Ekranı
-![Hasta Kayıt](screenshots/hasta_kayit.png)
-
-### Randevu Alma & Detayları
-![Randevu Alma](screenshots/hasta_randevu.png)
-
-### Doktorun Randevular Ekranı
-![Doktor Randevular](screenshots/doktorun_randevulari.png)
-
 ## 🛠️ Kullanılan Teknolojiler
 
 - C# (.NET Framework - Windows Forms)
