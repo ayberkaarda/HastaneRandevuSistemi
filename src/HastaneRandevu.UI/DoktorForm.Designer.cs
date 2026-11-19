@@ -9,6 +9,8 @@ namespace HastaneRandevu.UI
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button buttonRandevuIptal;
         private System.Windows.Forms.Button buttonCalismaProgrami;
+        private System.Windows.Forms.DateTimePicker dateTimePickerAjanda;
+        private System.Windows.Forms.Button buttonAjanda;
 
         protected override void Dispose(bool disposing)
         {
@@ -27,6 +29,8 @@ namespace HastaneRandevu.UI
             this.label1 = new System.Windows.Forms.Label();
             this.buttonRandevuIptal = new System.Windows.Forms.Button();
             this.buttonCalismaProgrami = new System.Windows.Forms.Button();
+            this.dateTimePickerAjanda = new System.Windows.Forms.DateTimePicker();
+            this.buttonAjanda = new System.Windows.Forms.Button();
             this.SuspendLayout();
             //
             // labelDoktor
@@ -50,10 +54,10 @@ namespace HastaneRandevu.UI
             //
             // buttonCikis
             //
-            this.buttonCikis.Location = new System.Drawing.Point(23, 340);
+            this.buttonCikis.Location = new System.Drawing.Point(23, 380);
             this.buttonCikis.Name = "buttonCikis";
             this.buttonCikis.Size = new System.Drawing.Size(100, 30);
-            this.buttonCikis.TabIndex = 6;
+            this.buttonCikis.TabIndex = 7;
             this.buttonCikis.Text = "Çıkış";
             this.buttonCikis.UseVisualStyleBackColor = true;
             this.buttonCikis.Click += new System.EventHandler(this.buttonCikis_Click);
@@ -88,11 +92,30 @@ namespace HastaneRandevu.UI
             this.buttonCalismaProgrami.UseVisualStyleBackColor = true;
             this.buttonCalismaProgrami.Click += new System.EventHandler(this.buttonCalismaProgrami_Click);
             //
+            // dateTimePickerAjanda
+            //
+            this.dateTimePickerAjanda.Location = new System.Drawing.Point(23, 334);
+            this.dateTimePickerAjanda.Name = "dateTimePickerAjanda";
+            this.dateTimePickerAjanda.Size = new System.Drawing.Size(170, 22);
+            this.dateTimePickerAjanda.TabIndex = 5;
+            //
+            // buttonAjanda
+            //
+            this.buttonAjanda.Location = new System.Drawing.Point(214, 330);
+            this.buttonAjanda.Name = "buttonAjanda";
+            this.buttonAjanda.Size = new System.Drawing.Size(170, 30);
+            this.buttonAjanda.TabIndex = 6;
+            this.buttonAjanda.Text = "Ajandayı Dışa Aktar";
+            this.buttonAjanda.UseVisualStyleBackColor = true;
+            this.buttonAjanda.Click += new System.EventHandler(this.buttonAjanda_Click);
+            //
             // DoktorForm
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(400, 390);
+            this.ClientSize = new System.Drawing.Size(400, 430);
+            this.Controls.Add(this.buttonAjanda);
+            this.Controls.Add(this.dateTimePickerAjanda);
             this.Controls.Add(this.buttonCalismaProgrami);
             this.Controls.Add(this.buttonRandevuIptal);
             this.Controls.Add(this.label1);

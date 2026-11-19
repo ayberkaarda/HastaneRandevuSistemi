@@ -8,6 +8,9 @@ internal interface IUserPrompts
     void Inform(string message);
 
     void Warn(string message);
+
+    /// <summary>Asks where to save a file; <see langword="null"/> when the user cancelled.</summary>
+    string? AskSavePath(string fileName, string filter);
 }
 
 internal sealed class MessageBoxPrompts(IWin32Window owner) : IUserPrompts
@@ -20,4 +23,6 @@ internal sealed class MessageBoxPrompts(IWin32Window owner) : IUserPrompts
 
     public void Warn(string message) =>
         Dialogs.Show(owner, message, "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+    public string? AskSavePath(string fileName, string filter) => Dialogs.AskSavePath(owner, fileName, filter);
 }

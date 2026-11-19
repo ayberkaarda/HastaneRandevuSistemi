@@ -21,7 +21,7 @@ public sealed class BrandingTests
         using var register = new UyeOlForm(auth);
         using var doctorSignIn = new DoktorGirisForm(auth, new NoFormsFactory());
         using var patientPanel = TestForms.PatientPanel(appointments);
-        using var doctorPanel = new DoktorForm(appointments, new NoFormsFactory(), Sessions.Doctor);
+        using var doctorPanel = TestForms.DoctorPanel(appointments);
         using var schedule = new CalismaProgramiForm(new ControlledScheduleService(), Sessions.Doctor);
 
         foreach (Form form in new Form[] { login, register, doctorSignIn, patientPanel, doctorPanel, schedule })

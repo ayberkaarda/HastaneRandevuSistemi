@@ -85,6 +85,8 @@ public sealed class ConfigurationTests
 
         Assert.Empty(problems);
         Assert.Equal(2, policy.RescheduleCutoffHours);
+        Assert.Equal(24, policy.ReminderLeadHours);
+        Assert.True(policy.ShowReminderBalloon);
     }
 
     [Theory]

@@ -14,10 +14,14 @@ namespace HastaneRandevu.UI
 
         private readonly IAppointmentService _appointments;
         private readonly IAvailabilityService _availability;
+        private readonly IReminderService _reminders;
+        private readonly IExportService _exports;
+        private readonly IReminderNotifier _notifier;
         private readonly IFormFactory _forms;
         private readonly UserSession _session;
         private readonly ExclusiveOperation _book = new();
         private readonly ExclusiveOperation _cancel = new();
+        private readonly ExclusiveOperation _export = new();
         private readonly RequestSequence _slotRequests = new();
         private readonly RequestSequence _listRequests = new();
         private readonly RequestSequence _searchRequests = new();
@@ -27,15 +31,30 @@ namespace HastaneRandevu.UI
         // start loads as a user selection would.
         private int _binding;
 
-        public MainForm(IAppointmentService appointments, IAvailabilityService availability, IFormFactory forms, UserSession session)
+        private bool _remindersShown;
+
+        public MainForm(
+            IAppointmentService appointments,
+            IAvailabilityService availability,
+            IReminderService reminders,
+            IExportService exports,
+            IReminderNotifier notifier,
+            IFormFactory forms,
+            UserSession session)
         {
             ArgumentNullException.ThrowIfNull(appointments);
             ArgumentNullException.ThrowIfNull(availability);
+            ArgumentNullException.ThrowIfNull(reminders);
+            ArgumentNullException.ThrowIfNull(exports);
+            ArgumentNullException.ThrowIfNull(notifier);
             ArgumentNullException.ThrowIfNull(forms);
             ArgumentNullException.ThrowIfNull(session);
 
             _appointments = appointments;
             _availability = availability;
+            _reminders = reminders;
+            _exports = exports;
+            _notifier = notifier;
             _forms = forms;
             _session = session;
             Prompts = new MessageBoxPrompts(this);
@@ -59,7 +78,7 @@ namespace HastaneRandevu.UI
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         internal IUserPrompts Prompts { get; set; }
 
-        /// <summary>Loads the branches, the doctors and the patient's appointments.</summary>
+        /// <summary>Loads the branches, the doctors, the patient's appointments and the reminders.</summary>
         internal Task LoadAsync() =>
             this.RunAsync(async () =>
             {
@@ -76,7 +95,54 @@ namespace HastaneRandevu.UI
                 });
                 await SearchDoctorsAsync();
                 await RefreshAppointmentsAsync();
+                await ShowRemindersAsync();
             });
+
+        /// <summary>
+        /// Shows the appointments starting soon inside the window and, once per panel, as a balloon that
+        /// does not take the focus (when switched on in the settings).
+        /// </summary>
+        internal async Task ShowRemindersAsync()
+        {
+            var upcoming = await _reminders.GetUpcomingAsync(_session);
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            if (upcoming.Count == 0)
+            {
+                labelHatirlatma.Text = string.Empty;
+                return;
+            }
+
+            var text = ReminderText.Describe(upcoming);
+            labelHatirlatma.Text = "Yaklaşan randevunuz:" + Environment.NewLine + text;
+            if (!_remindersShown)
+            {
+                _remindersShown = true;
+                _notifier.Notify(ReminderText.Title, text);
+            }
+        }
+
+        /// <summary>Saves the patient's own history as CSV; ignored while a previous export is still running.</summary>
+        internal Task<bool> ExportHistoryAsync() =>
+            this.RunExclusiveAsync(
+                _export,
+                async () =>
+                {
+                    var path = Prompts.AskSavePath(
+                        $"randevu-gecmisi-{DateTime.Today:yyyyMMdd}.csv",
+                        "CSV dosyası (*.csv)|*.csv");
+                    if (path is null)
+                    {
+                        return;
+                    }
+
+                    var count = await _exports.ExportHistoryCsvAsync(_session, path);
+                    Prompts.Inform($"Randevu geçmişiniz ({count} randevu) dışa aktarıldı.");
+                },
+                buttonGecmisCsv);
 
         /// <summary>
         /// Filters the doctor list by the name and branch entered; only the answer to the latest request
@@ -346,6 +412,8 @@ namespace HastaneRandevu.UI
         private async void buttonRandevuIptal_Click(object? sender, EventArgs e) => await CancelAsync();
 
         private async void buttonErtele_Click(object? sender, EventArgs e) => await RescheduleSelectedAsync();
+
+        private async void buttonGecmisCsv_Click(object? sender, EventArgs e) => await ExportHistoryAsync();
 
         private void buttonCikis_Click(object? sender, EventArgs e) => Close();
     }

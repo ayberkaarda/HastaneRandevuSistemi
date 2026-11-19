@@ -17,6 +17,8 @@ namespace HastaneRandevu.UI
         private System.Windows.Forms.Button buttonIlkBos;
         private System.Windows.Forms.Button buttonTakvim;
         private System.Windows.Forms.Label labelIlkBos;
+        private System.Windows.Forms.Label labelHatirlatma;
+        private System.Windows.Forms.Button buttonGecmisCsv;
 
         protected override void Dispose(bool disposing)
         {
@@ -43,6 +45,8 @@ namespace HastaneRandevu.UI
             this.buttonIlkBos = new System.Windows.Forms.Button();
             this.buttonTakvim = new System.Windows.Forms.Button();
             this.labelIlkBos = new System.Windows.Forms.Label();
+            this.labelHatirlatma = new System.Windows.Forms.Label();
+            this.buttonGecmisCsv = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label3 = new System.Windows.Forms.Label();
@@ -69,6 +73,12 @@ namespace HastaneRandevu.UI
             this.labelHastaBilgi.Size = new System.Drawing.Size(98, 23);
             this.labelHastaBilgi.TabIndex = 0;
             this.labelHastaBilgi.Text = "Hoşgeldiniz";
+            //
+            // labelHatirlatma
+            //
+            this.labelHatirlatma.Location = new System.Drawing.Point(90, 60);
+            this.labelHatirlatma.Name = "labelHatirlatma";
+            this.labelHatirlatma.Size = new System.Drawing.Size(786, 52);
             //
             // label4
             //
@@ -222,6 +232,16 @@ namespace HastaneRandevu.UI
             this.buttonErtele.UseVisualStyleBackColor = true;
             this.buttonErtele.Click += new System.EventHandler(this.buttonErtele_Click);
             //
+            // buttonGecmisCsv
+            //
+            this.buttonGecmisCsv.Location = new System.Drawing.Point(744, 366);
+            this.buttonGecmisCsv.Name = "buttonGecmisCsv";
+            this.buttonGecmisCsv.Size = new System.Drawing.Size(132, 36);
+            this.buttonGecmisCsv.TabIndex = 12;
+            this.buttonGecmisCsv.Text = "Geçmişi Dışa Aktar";
+            this.buttonGecmisCsv.UseVisualStyleBackColor = true;
+            this.buttonGecmisCsv.Click += new System.EventHandler(this.buttonGecmisCsv_Click);
+            //
             // buttonCikis
             //
             this.buttonCikis.Location = new System.Drawing.Point(761, 424);
@@ -239,6 +259,7 @@ namespace HastaneRandevu.UI
             this.ClientSize = new System.Drawing.Size(900, 480);
             this.Controls.Add(this.pictureBoxLogo);
             this.Controls.Add(this.labelHastaBilgi);
+            this.Controls.Add(this.labelHatirlatma);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.textBoxDoktorAra);
             this.Controls.Add(this.comboBoxBrans);
@@ -256,6 +277,7 @@ namespace HastaneRandevu.UI
             this.Controls.Add(this.listBoxRandevuGecmisi);
             this.Controls.Add(this.buttonRandevuIptal);
             this.Controls.Add(this.buttonErtele);
+            this.Controls.Add(this.buttonGecmisCsv);
             this.Controls.Add(this.buttonCikis);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;

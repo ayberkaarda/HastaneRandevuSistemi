@@ -118,6 +118,15 @@ namespace HastaneRandevu.UI
             services.AddSingleton<IAuditLog>(new SerilogAuditLog(Log.Logger));
             services.AddSqlServerDataAccess(connectionString, demo);
             services.AddBusinessServices(policy);
+            if (policy.ShowReminderBalloon)
+            {
+                services.AddSingleton<IReminderNotifier, NotifyIconReminderNotifier>();
+            }
+            else
+            {
+                services.AddSingleton<IReminderNotifier, NullReminderNotifier>();
+            }
+
             services.AddSingleton<IFormFactory, FormFactory>();
             return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
         }

@@ -213,6 +213,47 @@ internal sealed class ControlledAvailabilityService : IAvailabilityService
     }
 }
 
+/// <summary>Reminders answered at once with <see cref="Upcoming"/>.</summary>
+internal sealed class ControlledReminderService : IReminderService
+{
+    public List<AppointmentDetails> Upcoming { get; } = [];
+
+    public Task<IReadOnlyList<AppointmentDetails>> GetUpcomingAsync(UserSession session, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<AppointmentDetails>>([.. Upcoming]);
+}
+
+/// <summary>Exports that record their requests and stay pending until the test completes them; no file is written.</summary>
+internal sealed class ControlledExportService : IExportService
+{
+    public List<string> HistoryPaths { get; } = [];
+
+    public List<(DateOnly Day, string Path)> AgendaRequests { get; } = [];
+
+    public TaskCompletionSource<int> Pending { get; private set; } = new();
+
+    public Task<int> ExportHistoryCsvAsync(UserSession session, string path, CancellationToken cancellationToken = default)
+    {
+        HistoryPaths.Add(path);
+        Pending = new TaskCompletionSource<int>();
+        return Pending.Task;
+    }
+
+    public Task<int> ExportAgendaHtmlAsync(UserSession session, DateOnly day, string path, CancellationToken cancellationToken = default)
+    {
+        AgendaRequests.Add((day, path));
+        Pending = new TaskCompletionSource<int>();
+        return Pending.Task;
+    }
+}
+
+/// <summary>Records balloons instead of showing a notification area icon.</summary>
+internal sealed class RecordingNotifier : IReminderNotifier
+{
+    public List<(string Title, string Text)> Shown { get; } = [];
+
+    public void Notify(string title, string text) => Shown.Add((title, text));
+}
+
 /// <summary>Answers confirmations with yes and records every message instead of showing a dialog.</summary>
 internal sealed class RecordingPrompts : IUserPrompts
 {
@@ -227,6 +268,17 @@ internal sealed class RecordingPrompts : IUserPrompts
     public void Inform(string message) => Messages.Add(message);
 
     public void Warn(string message) => Messages.Add(message);
+
+    /// <summary>The path answered to save requests; <see langword="null"/> answers like a cancelled dialog.</summary>
+    public string? SavePath { get; set; }
+
+    public List<string> SaveRequests { get; } = [];
+
+    public string? AskSavePath(string fileName, string filter)
+    {
+        SaveRequests.Add(fileName);
+        return SavePath;
+    }
 }
 
 internal sealed class NoFormsFactory : IFormFactory

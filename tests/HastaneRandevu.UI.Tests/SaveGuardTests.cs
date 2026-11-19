@@ -106,7 +106,7 @@ public sealed class SaveGuardTests
     public void DoctorCancel_WhilePending_IsNotSentTwice() => Run(() =>
     {
         var appointments = new ControlledAppointmentService();
-        using var form = new DoktorForm(appointments, new NoFormsFactory(), Sessions.Doctor) { Prompts = new RecordingPrompts() };
+        using var form = TestForms.DoctorPanel(appointments, new RecordingPrompts());
         var list = Find<ListBox>(form, "listBoxRandevular");
         list.Items.Add(new DoctorAppointmentItem(Sessions.Appointment(5)));
         list.SelectedIndex = 0;

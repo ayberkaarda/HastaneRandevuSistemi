@@ -11,6 +11,8 @@ internal static class DisplayFormat
     public static string DateTime(DateTime value) => value.ToString("dd.MM.yyyy HH:mm", Turkish);
 
     public static string Time(DateTime value) => value.ToString("HH:mm", Turkish);
+
+    public static string Day(DateOnly value) => value.ToString("dd.MM.yyyy", Turkish);
 }
 
 /// <summary>A time of day in the working hours pickers; 24:00 is the end of the day.</summary>

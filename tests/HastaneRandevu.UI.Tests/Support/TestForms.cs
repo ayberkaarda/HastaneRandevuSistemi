@@ -10,9 +10,30 @@ internal static class TestForms
         IAppointmentService appointments,
         IUserPrompts? prompts = null,
         IFormFactory? forms = null,
-        IAvailabilityService? availability = null)
+        IAvailabilityService? availability = null,
+        IReminderService? reminders = null,
+        IExportService? exports = null,
+        IReminderNotifier? notifier = null)
     {
-        var form = new MainForm(appointments, availability ?? new ControlledAvailabilityService(), forms ?? new NoFormsFactory(), Sessions.Patient);
+        var form = new MainForm(
+            appointments,
+            availability ?? new ControlledAvailabilityService(),
+            reminders ?? new ControlledReminderService(),
+            exports ?? new ControlledExportService(),
+            notifier ?? new RecordingNotifier(),
+            forms ?? new NoFormsFactory(),
+            Sessions.Patient);
+        if (prompts is not null)
+        {
+            form.Prompts = prompts;
+        }
+
+        return form;
+    }
+
+    public static DoktorForm DoctorPanel(IAppointmentService appointments, IUserPrompts? prompts = null, IExportService? exports = null)
+    {
+        var form = new DoktorForm(appointments, exports ?? new ControlledExportService(), new NoFormsFactory(), Sessions.Doctor);
         if (prompts is not null)
         {
             form.Prompts = prompts;

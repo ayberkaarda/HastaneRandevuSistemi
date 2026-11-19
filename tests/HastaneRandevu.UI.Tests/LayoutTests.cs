@@ -9,7 +9,7 @@ public sealed class LayoutTests
     [Fact]
     public void DoctorPanel_FitsItsWindow() => Run(() =>
     {
-        using var form = new DoktorForm(new ControlledAppointmentService(), new NoFormsFactory(), Sessions.Doctor);
+        using var form = TestForms.DoctorPanel(new ControlledAppointmentService());
 
         LayoutAssert.FitsInside(form);
     });

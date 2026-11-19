@@ -27,6 +27,15 @@ public sealed class NoDialogs : IDisposable
 
             return DialogResult.No;
         };
+        Dialogs.SaveFileOverride = (fileName, _) =>
+        {
+            lock (Requests)
+            {
+                Requests.Add("Save: " + fileName);
+            }
+
+            return null;
+        };
     }
 
     /// <summary>Dialog requests made so far, for tests that check one was (or was not) asked.</summary>
@@ -41,5 +50,9 @@ public sealed class NoDialogs : IDisposable
         }
     }
 
-    public void Dispose() => Dialogs.Override = null;
+    public void Dispose()
+    {
+        Dialogs.Override = null;
+        Dialogs.SaveFileOverride = null;
+    }
 }
