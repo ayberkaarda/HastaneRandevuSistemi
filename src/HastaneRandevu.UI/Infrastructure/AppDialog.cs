@@ -370,7 +370,7 @@ public abstract class AppDialog : Form, IStatusSurface
                 continue;
             }
 
-            if (child is not (Panel or TableLayoutPanel or FlowLayoutPanel or GroupBox) && child.Width > 0 && child.Height > 0)
+            if (child.Width > 0 && child.Height > 0)
             {
                 // Labels wrap or end in an ellipsis inside their column, so only their height counts: text that
                 // wraps onto more lines needs a taller window. Inputs and buttons count in both directions.
