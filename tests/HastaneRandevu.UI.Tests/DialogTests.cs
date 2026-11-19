@@ -13,7 +13,7 @@ public sealed class DialogTests
     public void FailingLoad_ShowsTheFixedMessageThroughTheDialogHelper() => Run(() =>
     {
         var before = NoDialogs.Requested.Count;
-        using var form = new MainForm(new FailingAppointmentService(), Sessions.Patient) { Prompts = new RecordingPrompts() };
+        using var form = TestForms.PatientPanel(new FailingAppointmentService(), new RecordingPrompts());
 
         var load = form.LoadAsync();
 

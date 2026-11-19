@@ -65,7 +65,7 @@ public sealed class SaveGuardTests
     public void Book_WhilePending_IsNotSentTwice() => Run(() =>
     {
         var appointments = new ControlledAppointmentService();
-        using var form = new MainForm(appointments, Sessions.Patient) { Prompts = new RecordingPrompts() };
+        using var form = TestForms.PatientPanel(appointments, new RecordingPrompts());
         var doctors = Find<ComboBox>(form, "comboBoxDoktorlar");
         doctors.Items.Add(appointments.Doctors[0]);
         doctors.SelectedIndex = 0;
@@ -87,7 +87,7 @@ public sealed class SaveGuardTests
     {
         var appointments = new ControlledAppointmentService();
         var prompts = new RecordingPrompts();
-        using var form = new MainForm(appointments, Sessions.Patient) { Prompts = prompts };
+        using var form = TestForms.PatientPanel(appointments, prompts);
         var list = Find<ListBox>(form, "listBoxRandevuGecmisi");
         list.Items.Add(new PatientAppointmentItem(Sessions.Appointment(5)));
         list.SelectedIndex = 0;

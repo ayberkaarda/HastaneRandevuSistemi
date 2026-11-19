@@ -51,6 +51,20 @@ namespace HastaneRandevu.UI
             ApplicationConfiguration.Initialize();
 
             var configuration = BuildConfiguration();
+            var (policy, policyProblems) = AppConfiguration.ReadAppointmentPolicy(configuration);
+            if (policyProblems.Count > 0)
+            {
+                // The problems name settings and limits only, never entered or personal values.
+                Log.Warning("The Appointments settings are invalid: {Problems}", string.Join(" ", policyProblems));
+                Dialogs.Show(
+                    null,
+                    "appsettings.json içindeki \"Appointments\" ayarları geçersiz:\n\n" + string.Join("\n", policyProblems),
+                    AppText.Title,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
             var connectionString = AppConfiguration.ResolveConnectionString(configuration);
             if (string.IsNullOrWhiteSpace(connectionString))
             {
@@ -72,7 +86,7 @@ namespace HastaneRandevu.UI
                 Log.Warning("Demo mode is on: demo accounts with published passwords are created");
             }
 
-            using var serviceProvider = ConfigureServices(connectionString, demo);
+            using var serviceProvider = ConfigureServices(connectionString, demo, policy);
 
             try
             {
@@ -98,12 +112,12 @@ namespace HastaneRandevu.UI
                 .AddEnvironmentVariables()
                 .Build();
 
-        private static ServiceProvider ConfigureServices(string connectionString, DemoDataOptions demo)
+        private static ServiceProvider ConfigureServices(string connectionString, DemoDataOptions demo, AppointmentPolicy policy)
         {
             var services = new ServiceCollection();
             services.AddSingleton<IAuditLog>(new SerilogAuditLog(Log.Logger));
             services.AddSqlServerDataAccess(connectionString, demo);
-            services.AddBusinessServices();
+            services.AddBusinessServices(policy);
             services.AddSingleton<IFormFactory, FormFactory>();
             return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
         }
@@ -133,6 +147,27 @@ namespace HastaneRandevu.UI
             return string.IsNullOrWhiteSpace(fromEnvironment)
                 ? configuration.GetConnectionString(Program.ConnectionStringName)
                 : fromEnvironment;
+        }
+
+        /// <summary>
+        /// Reads the <c>Appointments</c> section (defaults for missing values) and validates it. Values that
+        /// cannot be converted (for example text for a number) are reported as problems too.
+        /// </summary>
+        public static (AppointmentPolicy Policy, IReadOnlyList<string> Problems) ReadAppointmentPolicy(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            AppointmentPolicy policy;
+            try
+            {
+                policy = configuration.GetSection(AppointmentPolicy.SectionName).Get<AppointmentPolicy>() ?? new AppointmentPolicy();
+            }
+            catch (InvalidOperationException)
+            {
+                return (new AppointmentPolicy(), ["Ayar değerlerinden biri okunamadı."]);
+            }
+
+            return (policy, policy.Validate());
         }
 
         /// <summary>

@@ -75,6 +75,38 @@ public sealed class ConfigurationTests
     }
 
     [Fact]
+    public void ExampleConfiguration_HasAValidAppointmentPolicy()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddSettingsFile(AppContext.BaseDirectory, ExampleFileName)
+            .Build();
+
+        var (policy, problems) = AppConfiguration.ReadAppointmentPolicy(configuration);
+
+        Assert.Empty(problems);
+        Assert.Equal(2, policy.RescheduleCutoffHours);
+    }
+
+    [Theory]
+    [InlineData(null, 2, null)]
+    [InlineData("0", 0, null)]
+    [InlineData("168", 168, null)]
+    [InlineData("169", 169, "RescheduleCutoffHours 0 ile 168 arasında olmalıdır.")]
+    [InlineData("-1", -1, "RescheduleCutoffHours 0 ile 168 arasında olmalıdır.")]
+    [InlineData("iki", 2, "Ayar değerlerinden biri okunamadı.")]
+    public void AppointmentPolicy_IsValidatedFromTheSettings(string? value, int expected, string? problem)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(value is null ? [] : new Dictionary<string, string?> { ["Appointments:RescheduleCutoffHours"] = value })
+            .Build();
+
+        var (policy, problems) = AppConfiguration.ReadAppointmentPolicy(configuration);
+
+        Assert.Equal(expected, policy.RescheduleCutoffHours);
+        Assert.Equal(problem is null ? [] : [problem], problems);
+    }
+
+    [Fact]
     public void SettingsFile_IsUsedWithoutEnvironmentVariable()
     {
         var configuration = new ConfigurationBuilder()

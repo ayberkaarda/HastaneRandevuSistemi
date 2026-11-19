@@ -4,22 +4,25 @@ using HastaneRandevu.UI.Infrastructure;
 
 namespace HastaneRandevu.UI
 {
-    /// <summary>Patient panel: book a slot with a doctor and list or cancel own appointments.</summary>
+    /// <summary>Patient panel: book a slot with a doctor and list, move or cancel own appointments.</summary>
     public partial class MainForm : Form
     {
         private readonly IAppointmentService _appointments;
+        private readonly IFormFactory _forms;
         private readonly UserSession _session;
         private readonly ExclusiveOperation _book = new();
         private readonly ExclusiveOperation _cancel = new();
         private readonly RequestSequence _slotRequests = new();
         private readonly RequestSequence _listRequests = new();
 
-        public MainForm(IAppointmentService appointments, UserSession session)
+        public MainForm(IAppointmentService appointments, IFormFactory forms, UserSession session)
         {
             ArgumentNullException.ThrowIfNull(appointments);
+            ArgumentNullException.ThrowIfNull(forms);
             ArgumentNullException.ThrowIfNull(session);
 
             _appointments = appointments;
+            _forms = forms;
             _session = session;
             Prompts = new MessageBoxPrompts(this);
 
@@ -119,6 +122,32 @@ namespace HastaneRandevu.UI
                 },
                 buttonRandevuIptal);
 
+        /// <summary>
+        /// Opens the reschedule dialog for the selected appointment; the lists are reloaded when it was
+        /// moved. Returns whether the appointment was moved.
+        /// </summary>
+        internal async Task<bool> RescheduleSelectedAsync()
+        {
+            if (listBoxRandevuGecmisi.SelectedItem is not PatientAppointmentItem item)
+            {
+                Prompts.Warn("Lütfen ertelemek istediğiniz randevuyu seçin.");
+                return false;
+            }
+
+            using var dialog = _forms.Create<ErteleForm>(_session, item.Appointment);
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return false;
+            }
+
+            await this.RunAsync(async () =>
+            {
+                await RefreshAppointmentsAsync();
+                await LoadSlotsAsync();
+            });
+            return true;
+        }
+
         private async Task RefreshAppointmentsAsync()
         {
             var request = _listRequests.Next();
@@ -138,6 +167,8 @@ namespace HastaneRandevu.UI
         private async void buttonRandevuAl_Click(object? sender, EventArgs e) => await BookAsync();
 
         private async void buttonRandevuIptal_Click(object? sender, EventArgs e) => await CancelAsync();
+
+        private async void buttonErtele_Click(object? sender, EventArgs e) => await RescheduleSelectedAsync();
 
         private void buttonCikis_Click(object? sender, EventArgs e) => Close();
     }

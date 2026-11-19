@@ -13,4 +13,12 @@ public sealed class LayoutTests
 
         LayoutAssert.FitsInside(form);
     });
+
+    [Fact]
+    public void PatientPanel_FitsItsWindow() => Run(() =>
+    {
+        using var form = TestForms.PatientPanel(new ControlledAppointmentService());
+
+        LayoutAssert.FitsInside(form);
+    });
 }

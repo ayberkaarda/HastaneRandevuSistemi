@@ -11,7 +11,7 @@ public sealed class MainFormTests
     [Fact]
     public void Header_ShowsTheNameAndOnlyTheMaskedNationalId() => Run(() =>
     {
-        using var form = new MainForm(new ControlledAppointmentService(), Sessions.Patient);
+        using var form = TestForms.PatientPanel(new ControlledAppointmentService());
 
         var header = Find<Label>(form, "labelHastaBilgi").Text;
 
@@ -24,7 +24,7 @@ public sealed class MainFormTests
     public void LoadSlots_AnswersOutOfOrder_ShowOnlyTheLatestSelection() => Run(() =>
     {
         var appointments = new ControlledAppointmentService();
-        using var form = new MainForm(appointments, Sessions.Patient);
+        using var form = TestForms.PatientPanel(appointments);
         var doctors = Find<ComboBox>(form, "comboBoxDoktorlar");
         var slots = Find<ComboBox>(form, "comboBoxSaat");
         doctors.Items.Add(appointments.Doctors[0]);
@@ -45,7 +45,7 @@ public sealed class MainFormTests
     public void LoadSlots_NewSelection_ClearsTheOldSlotsImmediately() => Run(() =>
     {
         var appointments = new ControlledAppointmentService();
-        using var form = new MainForm(appointments, Sessions.Patient);
+        using var form = TestForms.PatientPanel(appointments);
         var doctors = Find<ComboBox>(form, "comboBoxDoktorlar");
         var slots = Find<ComboBox>(form, "comboBoxSaat");
         doctors.Items.Add(appointments.Doctors[0]);
@@ -64,7 +64,7 @@ public sealed class MainFormTests
     {
         var appointments = new ControlledAppointmentService();
         var prompts = new RecordingPrompts();
-        using var form = new MainForm(appointments, Sessions.Patient) { Prompts = prompts };
+        using var form = TestForms.PatientPanel(appointments, prompts);
         var doctors = Find<ComboBox>(form, "comboBoxDoktorlar");
         doctors.Items.Add(appointments.Doctors[0]);
         doctors.SelectedIndex = 0;

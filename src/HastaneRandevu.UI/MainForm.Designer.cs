@@ -1,4 +1,4 @@
-﻿namespace HastaneRandevu.UI
+namespace HastaneRandevu.UI
 {
     partial class MainForm
     {
@@ -11,6 +11,7 @@
         private System.Windows.Forms.Button buttonRandevuAl;
         private System.Windows.Forms.Button buttonRandevuIptal;
         private System.Windows.Forms.Button buttonCikis;
+        private System.Windows.Forms.Button buttonErtele;
 
         protected override void Dispose(bool disposing)
         {
@@ -31,6 +32,7 @@
             this.buttonRandevuAl = new System.Windows.Forms.Button();
             this.buttonRandevuIptal = new System.Windows.Forms.Button();
             this.buttonCikis = new System.Windows.Forms.Button();
+            this.buttonErtele = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label3 = new System.Windows.Forms.Label();
@@ -105,7 +107,7 @@
             // buttonRandevuIptal
             //
             this.buttonRandevuIptal.Font = new System.Drawing.Font("Segoe UI", 7.8F);
-            this.buttonRandevuIptal.Location = new System.Drawing.Point(473, 324);
+            this.buttonRandevuIptal.Location = new System.Drawing.Point(404, 324);
             this.buttonRandevuIptal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.buttonRandevuIptal.Name = "buttonRandevuIptal";
             this.buttonRandevuIptal.Size = new System.Drawing.Size(115, 39);
@@ -113,6 +115,18 @@
             this.buttonRandevuIptal.Text = "İptal Et";
             this.buttonRandevuIptal.UseVisualStyleBackColor = true;
             this.buttonRandevuIptal.Click += new System.EventHandler(this.buttonRandevuIptal_Click);
+            //
+            // buttonErtele
+            //
+            this.buttonErtele.Font = new System.Drawing.Font("Segoe UI", 7.8F);
+            this.buttonErtele.Location = new System.Drawing.Point(525, 324);
+            this.buttonErtele.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.buttonErtele.Name = "buttonErtele";
+            this.buttonErtele.Size = new System.Drawing.Size(115, 39);
+            this.buttonErtele.TabIndex = 15;
+            this.buttonErtele.Text = "Ertele";
+            this.buttonErtele.UseVisualStyleBackColor = true;
+            this.buttonErtele.Click += new System.EventHandler(this.buttonErtele_Click);
             //
             // buttonCikis
             //
@@ -186,6 +200,7 @@
             this.Controls.Add(this.label3);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
+            this.Controls.Add(this.buttonErtele);
             this.Controls.Add(this.buttonCikis);
             this.Controls.Add(this.buttonRandevuIptal);
             this.Controls.Add(this.buttonRandevuAl);
