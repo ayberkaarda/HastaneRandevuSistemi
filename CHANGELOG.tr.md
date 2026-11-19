@@ -9,6 +9,8 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
+- `tools/Screenshots`: README ekran görüntülerini uydurma bir hastanenin verisiyle 1x ve 2x olarak pencere açmadan
+  çizer ve `assets/logo.svg` dosyasından `app.ico` ile `logo-256.png` üretir. README'lerde ekran görüntüleri bölümü var.
 - Girişten sonra yaklaşan randevu hatırlatmaları (pencere içinde ve bir kez odağı almayan bir balon olarak;
   `Appointments:ReminderLeadHours` ve `Appointments:ShowReminderBalloon`), hastanın geçmişi CSV olarak (UTF-8 BOM, `;`,
   formül enjeksiyonu önlenmiş) ve doktorun günlük ajandası yazdırılabilir HTML olarak (betik yok, CSP, tüm değerler
@@ -39,6 +41,16 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Değişenler
 
+- Sakin, klinik bir kimlikle yeni arayüz: merkezi tema (derin camgöbeği ve ince sıcak kayısı vurgu, Segoe UI yazı
+  ölçeği, boşluk ve boyut belirteçleri; açık, `Appearance:Theme` ile koyu ve Windows renklerinden yüksek karşıtlık),
+  her ekran için tek çerçeve (başlık, pencere içi ileti şeridi, kaydırılabilen gövde, alt bilgide eylemler, Esc ile
+  kapanır) ve monitör başına DPI desteği. Pencereler ekranın çalışma alanından büyük açılmaz, içerik kaydırılır;
+  yerleşimler iki katına kadar büyük yazıyla denetlenir. Sonuç ve doğrulama iletileri pencerenin içinde görünür;
+  sorular ve hatalar aynı görsel dildeki ileti penceresiyle sorulur. Giriş, başarı kutusu göstermeden doğrudan hasta
+  panelini açar.
+- Marka paneliyle giriş ve kayıt; randevu alma kartı, hatırlatma kartı ve iki satırlı randevu listesiyle hasta
+  paneli; doluluk çubuklu gün kutucukları ve açıklamalı takvim; erteleme penceresi; ajanda ve program kartlı doktor
+  paneli; her gün için bir satırlı çalışma programı. Listeler yüklenirken ve boşken bunu söyler.
 - Yeni bir veritabanına artık şifresi yayımlanmış hesaplar eklenmez: migration'lar hiçbir satır eklemez; demo
   doktorları ve hastaları yalnızca demo modunda (`HASTANE_DEMO=1` veya `Seed:Demo=true`, varsayılan kapalı)
   oluşturulur. Doktor ekleme ekranı olmadığından doktor hesaplarını işletmeci ekler.
@@ -63,6 +75,7 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Kaldırılanlar
 
+- Önceki logo, arka plan görseli ve görsel üretme betiği; yerlerini özgün bir logo aldı.
 - Devlet logoları ve stok fotoğraflar içeren eski ekran görüntüleri.
 
 ## Katmanlı .NET 10 temeli - 2026-11-19 (#1)

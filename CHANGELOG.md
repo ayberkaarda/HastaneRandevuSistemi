@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `tools/Screenshots`: draws the README screenshots offscreen (no window) with an invented hospital at 1x and 2x,
+  and rasterizes `assets/logo.svg` into `app.ico` and `logo-256.png`. The READMEs have a screenshots section.
 - Reminders of upcoming appointments after sign-in (in the window, and once as a balloon that takes no focus;
   `Appointments:ReminderLeadHours` and `Appointments:ShowReminderBalloon`), the patient's history as CSV (UTF-8 BOM,
   `;`, formula injection neutralised) and the doctor's daily agenda as printable HTML (no scripts, CSP, every value
@@ -37,6 +39,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- New user interface with a calm, clinical identity: a central theme (deep teal with a thin warm apricot mark,
+  Segoe UI type ramp, spacing and size tokens; light, dark through `Appearance:Theme`, and high contrast from the
+  Windows colors), one frame for every screen (header, inline message strip, scrolling body, footer actions, Esc
+  closes) and per-monitor DPI awareness. Windows open no larger than the screen's working area and their content
+  scrolls; layouts are checked with text up to twice as large. Results and validation messages appear inside the
+  window; questions and errors use a message window in the same visual language. Signing in opens the patient
+  panel directly, without a success box.
+- Sign-in and registration with a brand panel; a patient panel with a booking card, a reminder card and a two-line
+  appointment list; a calendar of day tiles with free-share bars and a legend; a reschedule dialog; a doctor panel
+  with agenda and schedule cards; a schedule screen with a row per weekday. Lists say when they load or are empty.
 - A new database no longer receives accounts with published passwords: the migrations insert no rows, and the
   demo doctors and patients are created only in demo mode (`HASTANE_DEMO=1` or `Seed:Demo=true`, off by default).
   Doctor accounts are added by the operator, as there is no screen for that.
@@ -63,6 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
+- The previous logo, the background image and the asset render script; an original logo replaces them.
 - The old screenshots, which showed government logos and stock photos.
 
 ## Layered .NET 10 foundation - 2026-11-19 (#1)
