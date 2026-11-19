@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Doctor working schedule: each doctor sets their own working days and hours and leave days (tables
+  `DoktorCalismaSaatleri` and `DoktorIzinGunleri`, migration `AddDoctorSchedules`). Free slots and bookings follow it; a
+  doctor without a schedule keeps the weekday 09:00-17:00 rule. Only the doctor can change their own schedule; existing
+  appointments are kept and those on a leave day or outside the hours are listed as warnings.
 - Daily rolling file logs with Serilog under `%LOCALAPPDATA%\HastaneRandevu\logs` (files older than
   30 days are deleted, at most 30 files are kept; tests check this with dated files).
   National ids, names, passwords, appointment details and exception messages are never logged.

@@ -31,10 +31,15 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Sign-in** ("Doktor Giriş", Doctor Sign In) with the doctor's full name and password.
 - ✅ **Appointments** ("Sisteme Kayıtlı Randevular", Booked Appointments): the patients and times of the
   appointments made with this doctor, which can be cancelled ("İptal Et", Cancel).
+- ✅ **Working schedule** ("Çalışma Programım", My Schedule): the doctor's own working days and hours (30 minute
+  steps, 00:00-24:00) and leave or holiday days. Existing appointments are never changed; those that fall on a leave
+  day or outside the new hours are listed as warnings.
 
 ### Appointment rules
 
-- ✅ 30 minute slots on weekdays from 09:00 to 17:00 (the last slot starts at 16:30); weekends have no slots.
+- ✅ 30 minute slots from each doctor's working hours, without their leave days. A doctor who never saved a
+  schedule works weekdays from 09:00 to 17:00 (the last slot starts at 16:30), the original rule, so existing
+  databases behave as before.
 - ✅ Only future slots, at most 90 calendar days ahead (day 90 included).
 - ✅ One active appointment per doctor and slot; a cancelled slot becomes free again.
 - ✅ Cancellation only before the appointment starts; cancelled appointments are kept as history.
@@ -64,6 +69,7 @@ uses EF Core, and the database is created and migrated automatically on startup.
 | Book an appointment | ✅ for themselves only | ❌ |
 | List appointments | ✅ their own | ✅ those made with them |
 | Cancel an appointment | ✅ their own, before it starts | ✅ those made with them, before they start |
+| Change working hours and leave days | ❌ | ✅ their own only |
 | See or change other accounts' appointments | ❌ | ❌ |
 
 ---

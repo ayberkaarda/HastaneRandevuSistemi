@@ -9,6 +9,10 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
+- Doktor çalışma programı: her doktor kendi çalışma günlerini, saatlerini ve izin günlerini belirler (`DoktorCalismaSaatleri`
+  ve `DoktorIzinGunleri` tabloları, `AddDoctorSchedules` migration'ı). Boş dilimler ve randevular buna uyar; programı
+  olmayan doktor hafta içi 09:00-17:00 kuralıyla çalışır. Programı yalnızca doktorun kendisi değiştirebilir; mevcut
+  randevular korunur, izin gününe veya saatlerin dışına düşenler uyarı olarak listelenir.
 - `%LOCALAPPDATA%\HastaneRandevu\logs` altında Serilog ile günlük dönen dosya günlükleri (30 günden eski
   dosyalar silinir, en fazla 30 dosya saklanır; testler bunu tarihli dosyalarla doğrular).
   T.C. kimlik numaraları, adlar, şifreler, randevu ayrıntıları ve istisna mesajları hiçbir zaman günlüğe yazılmaz.

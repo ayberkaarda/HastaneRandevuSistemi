@@ -30,10 +30,15 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Giriş** ("Doktor Giriş"): doktorun adı soyadı ve şifresi ile.
 - ✅ **Randevular** ("Sisteme Kayıtlı Randevular"): bu doktora alınan randevuların hastaları ve saatleri; iptal
   edilebilir ("İptal Et").
+- ✅ **Çalışma programı** ("Çalışma Programım"): doktorun kendi çalışma günleri ve saatleri (yarım saatlik
+  adımlarla, 00:00-24:00) ile izin ve tatil günleri. Mevcut randevular hiçbir zaman değiştirilmez; izin gününe veya
+  yeni saatlerin dışına düşenler uyarı olarak listelenir.
 
 ### Randevu kuralları
 
-- ✅ Hafta içi 09:00-17:00 arası 30 dakikalık dilimler (son dilim 16:30'da başlar); hafta sonu dilim yoktur.
+- ✅ Her doktorun çalışma saatlerinden, izin günleri çıkarılarak üretilen 30 dakikalık dilimler. Hiç program
+  kaydetmemiş bir doktor eski kuraldaki gibi hafta içi 09:00-17:00 çalışır (son dilim 16:30'da başlar); böylece
+  mevcut veritabanları eskisi gibi davranır.
 - ✅ Yalnızca ileri tarihli dilimler, en fazla 90 takvim günü sonrası (90. gün dahil).
 - ✅ Bir doktor ve dilim için tek etkin randevu; iptal edilen dilim yeniden boşalır.
 - ✅ İptal yalnızca randevu başlamadan önce yapılabilir; iptal edilen randevular geçmiş olarak saklanır.
@@ -62,6 +67,7 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 | Randevu alma | ✅ yalnızca kendisi için | ❌ |
 | Randevuları listeleme | ✅ kendi randevuları | ✅ kendisine alınanlar |
 | Randevu iptali | ✅ kendi randevuları, başlamadan önce | ✅ kendisine alınanlar, başlamadan önce |
+| Çalışma saatlerini ve izin günlerini değiştirme | ❌ | ✅ yalnızca kendi programı |
 | Başka hesapların randevularını görme veya değiştirme | ❌ | ❌ |
 
 ---
