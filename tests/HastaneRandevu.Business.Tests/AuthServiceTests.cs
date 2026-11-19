@@ -52,8 +52,8 @@ public sealed class AuthServiceTests
     {
         var legacy = new string('x', PasswordPolicy.SignInMaxLength);
         Setup(Account(legacy, format: PasswordFormat.LegacyPlainText));
-        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, It.IsNotNull<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, It.Is<AccountCredentials>(c => c.Id == 7), Now, It.IsNotNull<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         var session = await Service().SignInPatientAsync(NationalId, legacy, Ct);
 
@@ -109,8 +109,8 @@ public sealed class AuthServiceTests
     public async Task SignInPatient_ExpiredLockout_AllowsSignIn()
     {
         Setup(Account(_hasher.Hash("Gizli.Sifre1"), lockoutEnd: Now.AddSeconds(-1)));
-        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, null, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, It.Is<AccountCredentials>(c => c.Id == 7), Now, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         var session = await Service().SignInPatientAsync(NationalId, "Gizli.Sifre1", Ct);
 
@@ -121,8 +121,8 @@ public sealed class AuthServiceTests
     public async Task SignInPatient_Success_ResetsFailuresAndReturnsAMaskedSession()
     {
         Setup(Account(_hasher.Hash("Gizli.Sifre1")));
-        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, null, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, It.Is<AccountCredentials>(c => c.Id == 7), Now, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         var session = await Service().SignInPatientAsync($" {NationalId} ", "Gizli.Sifre1", Ct);
 
@@ -130,7 +130,20 @@ public sealed class AuthServiceTests
         Assert.Equal(7, session.AccountId);
         Assert.Equal("Deniz Örnek", session.DisplayName);
         Assert.Equal("100******50", session.MaskedNationalId);
-        _accounts.Verify(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, null, It.IsAny<CancellationToken>()), Times.Once);
+        _accounts.Verify(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, It.Is<AccountCredentials>(c => c.Id == 7), Now, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SignInPatient_AccountLockedOrChangedBeforeTheSuccessIsWritten_IsRefused()
+    {
+        var account = Account(_hasher.Hash("Gizli.Sifre1"));
+        Setup(account);
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, account, Now, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInPatientAsync(NationalId, "Gizli.Sifre1", Ct));
+
+        Assert.Equal(AuthService.PatientCredentialsInvalid, error.Message);
     }
 
     [Fact]
@@ -138,9 +151,9 @@ public sealed class AuthServiceTests
     {
         Setup(Account("sifre1", format: PasswordFormat.LegacyPlainText));
         string? stored = null;
-        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<AccountRole, int, string?, CancellationToken>((_, _, hash, _) => stored = hash)
-            .Returns(Task.CompletedTask);
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, It.Is<AccountCredentials>(c => c.Id == 7), Now, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<AccountRole, AccountCredentials, DateTime, string?, CancellationToken>((_, _, _, hash, _) => stored = hash)
+            .ReturnsAsync(true);
 
         await Service().SignInPatientAsync(NationalId, "sifre1", Ct);
 
@@ -157,8 +170,8 @@ public sealed class AuthServiceTests
             .ReturnsAsync(new AccountCredentials(3, "Dr. Ada Örnek", "10000000146", _hasher.Hash("Demo.Doktor1"), PasswordFormat.Pbkdf2, 0, null));
         _accounts.Setup(a => a.RecordFailedLoginAsync(AccountRole.Doctor, 3, 5, Now.AddMinutes(15), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Doctor, 3, null, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Doctor, It.Is<AccountCredentials>(c => c.Id == 3), Now, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         var wrong = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInDoctorAsync("Dr. Ada Örnek", "yanlis", Ct));
         var session = await Service().SignInDoctorAsync(" Dr. Ada Örnek ", "Demo.Doktor1", Ct);

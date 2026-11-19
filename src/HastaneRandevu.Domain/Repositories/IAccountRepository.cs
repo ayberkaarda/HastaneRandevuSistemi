@@ -21,13 +21,20 @@ public interface IAccountRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Clears the failed attempts and the lockout. When <paramref name="newPasswordHash"/> is given the
-    /// stored password is replaced with it and its format becomes <see cref="PasswordFormat.Pbkdf2"/>
-    /// in the same statement (upgrade of a plain text or weaker hash).
+    /// Records a successful sign-in in one conditional UPDATE: only while the account is not locked at
+    /// <paramref name="now"/> and still has the password value and format of <paramref name="verified"/>
+    /// are the failed attempts reset. When <paramref name="newPasswordHash"/> is given the stored
+    /// password is replaced with it and its format becomes <see cref="PasswordFormat.Pbkdf2"/> in the
+    /// same statement (upgrade of a plain text or weaker hash).
     /// </summary>
-    Task RecordSuccessfulLoginAsync(
+    /// <returns>
+    /// <see langword="false"/> when the account changed after it was read (for example a concurrent
+    /// failure locked it); nothing is written then and the sign-in must be refused.
+    /// </returns>
+    Task<bool> RecordSuccessfulLoginAsync(
         AccountRole role,
-        int accountId,
+        AccountCredentials verified,
+        DateTime now,
         string? newPasswordHash,
         CancellationToken cancellationToken = default);
 }

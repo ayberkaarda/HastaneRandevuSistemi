@@ -176,7 +176,14 @@ internal sealed class AuthService(
             newHash = passwordHasher.Hash(legacy ? password.Trim() : password);
         }
 
-        await accounts.RecordSuccessfulLoginAsync(role, account.Id, newHash, cancellationToken).ConfigureAwait(false);
+        // The session is issued only if the account is still unlocked and unchanged when the success
+        // is written; a lock placed by a concurrent failure since the read wins.
+        var recorded = await accounts.RecordSuccessfulLoginAsync(role, account, now, newHash, cancellationToken)
+            .ConfigureAwait(false);
+        if (!recorded)
+        {
+            throw new BusinessRuleException(invalidMessage);
+        }
 
         return new UserSession(role, account.Id, account.FullName, NationalIdNumber.Mask(account.NationalId));
     }

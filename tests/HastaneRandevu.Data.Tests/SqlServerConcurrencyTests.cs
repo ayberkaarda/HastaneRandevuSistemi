@@ -114,6 +114,49 @@ public sealed class SqlServerConcurrencyTests
             ct));
     }
 
+    /// <summary>
+    /// Two application instances sign in to an account with four failures: B with the right password,
+    /// A with a wrong one. B is held after its password check, A's fifth failure locks the account,
+    /// then B continues. B must be refused and the lock must stay.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountRole.Patient)]
+    [InlineData(AccountRole.Doctor)]
+    public async Task SignIn_SuccessRacingWithFifthFailure_DoesNotClearLock(AccountRole role)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (table, rightPassword) = role == AccountRole.Patient ? ("Hastalar", "Demo.Hasta1") : ("Doktorlar", "Demo.Doktor1");
+        var nationalId = role == AccountRole.Patient ? "10000000450" : "10000000146";
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+        await using var instanceA = database.BuildServices();
+        await instanceA.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        var gate = new SuccessWriteGate();
+        await using var instanceB = database.BuildServices(services => services.HoldSuccessfulSignInWrites(gate));
+        await database.ExecuteAsync($"UPDATE dbo.{table} SET BasarisizGiris = 4 WHERE TC = @tc", ct, ("@tc", nationalId));
+        var lockState = $"SELECT CONVERT(nvarchar(40), KilitBitis, 126) + N'/' + CONVERT(nvarchar(10), BasarisizGiris) FROM dbo.{table} WHERE TC = @tc";
+
+        var authB = instanceB.GetRequiredService<IAuthService>();
+        var signInB = Task.Run(() => SignInAsync(authB, role, rightPassword, ct), ct);
+        await gate.Reached.WaitAsync(TimeSpan.FromSeconds(30), ct);
+
+        var failureA = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => SignInAsync(instanceA.GetRequiredService<IAuthService>(), role, "yanlis", ct));
+        var lockedByA = await database.TextAsync(lockState, ct, ("@tc", nationalId));
+        Assert.NotNull(lockedByA);
+        Assert.EndsWith("/0", lockedByA, StringComparison.Ordinal);
+
+        gate.Release();
+        var failureB = await Assert.ThrowsAsync<BusinessRuleException>(() => signInB);
+
+        Assert.Equal(failureA.Message, failureB.Message);
+        Assert.Equal(lockedByA, await database.TextAsync(lockState, ct, ("@tc", nationalId)));
+    }
+
+    private static Task<UserSession> SignInAsync(IAuthService auth, AccountRole role, string password, CancellationToken ct) =>
+        role == AccountRole.Patient
+            ? auth.SignInPatientAsync("10000000450", password, ct)
+            : auth.SignInDoctorAsync("Dr. Ada Örnek", password, ct);
+
     private static async Task<IReadOnlyList<int>> AddPatientsAsync(SqlServerTestDatabase database, int count, CancellationToken ct)
     {
         var ids = new List<int>();

@@ -67,39 +67,53 @@ internal sealed class AccountRepository(IDbContextFactory<HospitalDbContext> con
         }
     }
 
-    public async Task RecordSuccessfulLoginAsync(
+    public async Task<bool> RecordSuccessfulLoginAsync(
         AccountRole role,
-        int accountId,
+        AccountCredentials verified,
+        DateTime now,
         string? newPasswordHash,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(verified);
+
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
-        if (role == AccountRole.Patient)
-        {
-            await db.Patients
-                .Where(p => p.Id == accountId)
+        // The WHERE clause is the final decision: a lock set by a concurrent failure, or a password
+        // changed since it was verified, makes the statement match no row and the sign-in fails.
+        var id = verified.Id;
+        var verifiedHash = verified.PasswordHash;
+        var verifiedFormat = verified.PasswordFormat;
+        var hash = newPasswordHash ?? verifiedHash;
+        var format = newPasswordHash is null ? verifiedFormat : PasswordFormat.Pbkdf2;
+
+        var updated = role == AccountRole.Patient
+            ? await db.Patients
+                .Where(p => p.Id == id
+                    && (p.LockoutEnd == null || p.LockoutEnd <= now)
+                    && p.PasswordHash == verifiedHash
+                    && p.PasswordFormat == verifiedFormat)
                 .ExecuteUpdateAsync(
                     s => s
                         .SetProperty(p => p.FailedLoginCount, 0)
                         .SetProperty(p => p.LockoutEnd, (DateTime?)null)
-                        .SetProperty(p => p.PasswordHash, p => newPasswordHash ?? p.PasswordHash)
-                        .SetProperty(p => p.PasswordFormat, p => newPasswordHash != null ? PasswordFormat.Pbkdf2 : p.PasswordFormat),
+                        .SetProperty(p => p.PasswordHash, hash)
+                        .SetProperty(p => p.PasswordFormat, format),
                     cancellationToken)
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            await db.Doctors
-                .Where(d => d.Id == accountId)
+                .ConfigureAwait(false)
+            : await db.Doctors
+                .Where(d => d.Id == id
+                    && (d.LockoutEnd == null || d.LockoutEnd <= now)
+                    && d.PasswordHash == verifiedHash
+                    && d.PasswordFormat == verifiedFormat)
                 .ExecuteUpdateAsync(
                     s => s
                         .SetProperty(d => d.FailedLoginCount, 0)
                         .SetProperty(d => d.LockoutEnd, (DateTime?)null)
-                        .SetProperty(d => d.PasswordHash, d => newPasswordHash ?? d.PasswordHash)
-                        .SetProperty(d => d.PasswordFormat, d => newPasswordHash != null ? PasswordFormat.Pbkdf2 : d.PasswordFormat),
+                        .SetProperty(d => d.PasswordHash, hash)
+                        .SetProperty(d => d.PasswordFormat, format),
                     cancellationToken)
                 .ConfigureAwait(false);
-        }
+
+        return updated == 1;
     }
 }

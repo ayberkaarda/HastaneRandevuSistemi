@@ -47,11 +47,16 @@ internal sealed class SqlServerTestDatabase : IAsyncDisposable
         return new SqlServerTestDatabase(server, "HastaneRandevuTest_" + Guid.NewGuid().ToString("N"));
     }
 
-    public ServiceProvider BuildServices()
+    /// <summary>
+    /// The application's services on this database. Each provider has its own connection pool, so
+    /// two providers behave like two application instances.
+    /// </summary>
+    public ServiceProvider BuildServices(Action<IServiceCollection>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddSqlServerDataAccess(ConnectionString);
         services.AddTestBusinessServices(Clock);
+        configure?.Invoke(services);
         return services.BuildServiceProvider();
     }
 
