@@ -24,6 +24,9 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
   ve boş bir saat ("Saat Seçiniz") seçilir.
 - ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
   ("Randevu İptal").
+- ✅ **Erteleme** ("Ertele"): kendi randevusu aynı doktorun boş bir dilimine tek ve atomik bir adımda taşınır (iptal
+  edilip yeniden alınmaz). Randevu başlamamış ve en az `Appointments:RescheduleCutoffHours` saat uzakta olmalıdır
+  (varsayılan 2); yeni saat randevu alma kurallarına uyar.
 
 ### Doktor paneli
 
@@ -68,6 +71,7 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 | Randevuları listeleme | ✅ kendi randevuları | ✅ kendisine alınanlar |
 | Randevu iptali | ✅ kendi randevuları, başlamadan önce | ✅ kendisine alınanlar, başlamadan önce |
 | Çalışma saatlerini ve izin günlerini değiştirme | ❌ | ✅ yalnızca kendi programı |
+| Randevu erteleme | ✅ kendi randevuları, sınıra kadar | ❌ |
 | Başka hesapların randevularını görme veya değiştirme | ❌ | ❌ |
 
 ---
@@ -162,6 +166,19 @@ geçersiz kılar):
 > yalnızca yerel geliştirme sunucusu içindir.
 
 Bağlantı dizesi bulunamazsa uygulama bu seçenekleri açıklayan Türkçe bir mesaj gösterip kapanır.
+
+`Appointments` bölümü ayarlanabilir kuralları içerir (varsayılanlar gösterilmiştir); geçersiz değerler, ayarın adını
+veren Türkçe bir mesajla uygulamayı durdurur:
+
+```json
+"Appointments": {
+  "RescheduleCutoffHours": 2
+}
+```
+
+| Ayar | Anlamı | İzin verilen |
+|---|---|---|
+| `RescheduleCutoffHours` | Randevu, başlamasına bu kadar saat kalana kadar ertelenebilir | 0-168 |
 
 ### 2. Çalıştırma
 

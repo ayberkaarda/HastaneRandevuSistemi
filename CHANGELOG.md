@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Rescheduling: a patient moves their own appointment to a free slot of the same doctor in one conditional update
+  (no cancel and rebook), until `Appointments:RescheduleCutoffHours` before the start (default 2, validated at
+  startup). Races for the new slot between moves and bookings are tested on SQL Server.
 - Doctor working schedule: each doctor sets their own working days and hours and leave days (tables
   `DoktorCalismaSaatleri` and `DoktorIzinGunleri`, migration `AddDoctorSchedules`). Free slots and bookings follow it; a
   doctor without a schedule keeps the weekday 09:00-17:00 rule. Only the doctor can change their own schedule; existing

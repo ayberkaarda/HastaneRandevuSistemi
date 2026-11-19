@@ -9,6 +9,9 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
+- Erteleme: hasta kendi randevusunu aynı doktorun boş bir dilimine tek bir koşullu güncellemeyle taşır (iptal edip
+  yeniden almadan); başlangıca `Appointments:RescheduleCutoffHours` saat kalana kadar (varsayılan 2, açılışta
+  doğrulanır). Yeni dilim için erteleme ve randevu alma yarışları SQL Server'da test edilir.
 - Doktor çalışma programı: her doktor kendi çalışma günlerini, saatlerini ve izin günlerini belirler (`DoktorCalismaSaatleri`
   ve `DoktorIzinGunleri` tabloları, `AddDoctorSchedules` migration'ı). Boş dilimler ve randevular buna uyar; programı
   olmayan doktor hafta içi 09:00-17:00 kuralıyla çalışır. Programı yalnızca doktorun kendisi değiştirebilir; mevcut

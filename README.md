@@ -25,6 +25,9 @@ uses EF Core, and the database is created and migrated automatically on startup.
   branch, a day ("Tarih Seçiniz", Select Date) and a free time ("Saat Seçiniz", Select Time).
 - ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own appointments that are not cancelled,
   which can be cancelled ("Randevu İptal", Cancel Appointment) after a confirmation.
+- ✅ **Rescheduling** ("Ertele", Reschedule): an own appointment is moved to a free slot of the same doctor in one
+  atomic step (no cancellation and no new appointment). It must not have started and must be at least
+  `Appointments:RescheduleCutoffHours` hours away (default 2); the new time follows the booking rules.
 
 ### Doctor panel
 
@@ -70,6 +73,7 @@ uses EF Core, and the database is created and migrated automatically on startup.
 | List appointments | ✅ their own | ✅ those made with them |
 | Cancel an appointment | ✅ their own, before it starts | ✅ those made with them, before they start |
 | Change working hours and leave days | ❌ | ✅ their own only |
+| Reschedule an appointment | ✅ their own, up to the cut-off | ❌ |
 | See or change other accounts' appointments | ❌ | ❌ |
 
 ---
@@ -162,6 +166,19 @@ Provide a connection string named `HastaneRandevu`. Any of the following works (
 > local development server only.
 
 If no connection string is found, the application shows a Turkish message explaining these options and exits.
+
+The `Appointments` section holds the configurable rules (defaults shown); invalid values stop the application with
+a Turkish message that names the setting:
+
+```json
+"Appointments": {
+  "RescheduleCutoffHours": 2
+}
+```
+
+| Setting | Meaning | Allowed |
+|---|---|---|
+| `RescheduleCutoffHours` | An appointment can be rescheduled until this many hours before it starts | 0-168 |
 
 ### 2. Running
 
