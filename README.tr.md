@@ -22,7 +22,7 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Giriş** ("Giriş Yap"): T.C. Kimlik No ve şifre ile.
 - ✅ **Randevu alma** ("Randevu Al"): branşıyla birlikte bir doktor ("Doktor Seçiniz"), bir gün ("Tarih Seçiniz")
   ve boş bir saat ("Saat Seçiniz") seçilir.
-- ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi yaklaşan randevuları; onaydan sonra iptal edilebilir
+- ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
   ("Randevu İptal").
 
 ### Doktor paneli

@@ -49,6 +49,7 @@ special category of personal data. This document lists technical measures only; 
 | Lock state disclosed through the log file | A sign-in refused because the account is locked writes the same `auth.sign_in.failed` entry as an unknown account or a wrong password; there is no separate lock code. A test compares the entries of the three cases | Mitigated |
 | Personal data in error dialogs | Users see fixed Turkish messages; raw exception text is never shown | Mitigated |
 | Log files read by other local users | Logs are under the user's own local application data folder | Mitigated by OS permissions |
+| Log files read by another application account on the same Windows account | Windows file permissions separate Windows accounts, not the patient and doctor accounts of the application: everyone who signs in on the same Windows account (for example a shared front-desk workstation) can read the same log files and knows when they made their own attempts. The files therefore hold only anonymous codes, roles and exception types, and every failed sign-in (unknown account, wrong password, locked account) writes the same code, so the file reveals neither who signed in nor which account exists or is locked | Mitigated (counts and times of events remain visible) |
 | Log files growing without bound | Daily rolling files, the last 30 are kept | Mitigated |
 | SQL injection | All access goes through EF Core with parameters; the only raw statements are constant schema and lock statements of the legacy upgrade | Mitigated |
 | Connection string leaked through the repository | `appsettings.json` is git-ignored; user secrets and the `HASTANE_CONNECTION` environment variable are supported; only `appsettings.example.json` is committed | Mitigated |
@@ -66,6 +67,9 @@ special category of personal data. This document lists technical measures only; 
   accounts are affected (`SifreBicimi = 1`).
 - Doctors sign in by full name, which is easy to guess; the lockout and the password are the only protection.
 - There is no password change or reset screen yet.
+- On a Windows account shared by several application users, each of them can read when sign-ins, bookings and
+  cancellations happened from the log file, though not by whom. Give each person their own Windows account if
+  even that is too much.
 
 ## Out of scope
 

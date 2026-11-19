@@ -23,7 +23,7 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Sign-in** ("Giriş Yap", Sign In) with the national id and the password.
 - ✅ **Booking** ("Randevu Al", Book Appointment): choose a doctor ("Doktor Seçiniz", Select Doctor) with their
   branch, a day ("Tarih Seçiniz", Select Date) and a free time ("Saat Seçiniz", Select Time).
-- ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own upcoming appointments,
+- ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own appointments that are not cancelled,
   which can be cancelled ("Randevu İptal", Cancel Appointment) after a confirmation.
 
 ### Doctor panel
