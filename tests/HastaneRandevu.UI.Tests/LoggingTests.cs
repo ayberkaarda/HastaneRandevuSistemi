@@ -489,6 +489,17 @@ public sealed partial class LoggingTests : IDisposable
             return Task.FromResult(appointment.Id);
         }
 
+        public Task<bool> RescheduleAsync(int id, int patientId, DateTime newStartsAt, DateTime startsAfter, DateTime startsNoEarlierThan, CancellationToken cancellationToken = default)
+        {
+            if (_rows.Any(a => a.DoctorId == 1 && a.StartsAt == newStartsAt && a.Status == AppointmentStatus.Active))
+            {
+                return Task.FromException<bool>(new SlotAlreadyBookedException($"{DoctorName} {newStartsAt:O}"));
+            }
+
+            _rows.Single(a => a.Id == id).StartsAt = newStartsAt;
+            return Task.FromResult(true);
+        }
+
         public Task<bool> CancelAsync(int id, AccountRole ownerRole, int ownerId, DateTime startsAfter, DateTime cancelledAtUtc, CancellationToken cancellationToken = default)
         {
             var row = _rows.Single(a => a.Id == id);

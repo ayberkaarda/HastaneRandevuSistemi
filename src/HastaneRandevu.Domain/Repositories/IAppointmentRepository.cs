@@ -36,6 +36,22 @@ public interface IAppointmentRepository
         DateTime startsAfter,
         DateTime cancelledAtUtc,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves the appointment to <paramref name="newStartsAt"/> with the same doctor in one statement,
+    /// only if it is still active, belongs to <paramref name="patientId"/>, starts after
+    /// <paramref name="startsAfter"/> and not before <paramref name="startsNoEarlierThan"/>. The old slot
+    /// becomes free in the same moment; nothing is cancelled or created.
+    /// </summary>
+    /// <returns><see langword="false"/> when no appointment matched.</returns>
+    /// <exception cref="SlotAlreadyBookedException">The doctor already has an active appointment at the new time.</exception>
+    Task<bool> RescheduleAsync(
+        int id,
+        int patientId,
+        DateTime newStartsAt,
+        DateTime startsAfter,
+        DateTime startsNoEarlierThan,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Raised when a doctor's slot is already taken by an active appointment.</summary>

@@ -30,8 +30,15 @@ internal static class ValidationMessages
     public const string WorkingDayRepeated = "Her gün yalnızca bir kez seçilebilir.";
     public const string WorkingHoursInvalid =
         "Çalışma saatleri yarım saatlik adımlarla seçilmeli ve başlangıç saati bitiş saatinden önce olmalıdır.";
+public const string StartedCannotReschedule = "Geçmiş veya başlamış bir randevu ertelenemez.";
+    public const string SameSlot = "Lütfen randevunuzun şu anki saatinden farklı bir saat seçiniz.";
     public const string LeaveDayInPast = "Geçmiş bir gün izin olarak eklenemez.";
     public const string LeaveDayTooFarAhead = "İzin günü en fazla 365 gün sonrası için eklenebilir.";
+
+    /// <summary>The cut-off for moving an appointment; <paramref name="cutoff"/> comes from the settings.</summary>
+    public static string RescheduleTooLate(TimeSpan cutoff) => string.Create(
+        CultureInfo.InvariantCulture,
+        $"Randevu en geç başlamadan {cutoff.TotalHours:0} saat öncesine kadar ertelenebilir.");
 
     public static readonly string PasswordInvalid = string.Create(
         CultureInfo.InvariantCulture,
@@ -205,5 +212,27 @@ internal sealed class CancellationInputValidator : AbstractValidator<Cancellatio
             .NotEqual(AppointmentStatus.Cancelled).WithMessage(ValidationMessages.AlreadyCancelled);
         RuleFor(c => c.StartsAt)
             .Must((c, start) => start > c.Now).WithMessage(ValidationMessages.StartedCannotCancel);
+    }
+}
+
+/// <summary>
+/// Rescheduling: the appointment is active, has not started, is still at least the configured cut-off
+/// away, and the new time differs and follows the same rules as a new booking.
+/// </summary>
+internal sealed class RescheduleInputValidator : AbstractValidator<RescheduleInput>
+{
+    public RescheduleInputValidator()
+    {
+        ClassLevelCascadeMode = CascadeMode.Stop;
+        RuleLevelCascadeMode = CascadeMode.Stop;
+
+        RuleFor(r => r.Status)
+            .NotEqual(AppointmentStatus.Cancelled).WithMessage(ValidationMessages.AlreadyCancelled);
+        RuleFor(r => r.CurrentStartsAt)
+            .Must((r, start) => start > r.Now).WithMessage(ValidationMessages.StartedCannotReschedule)
+            .Must((r, start) => start - r.Now >= r.Cutoff).WithMessage(r => ValidationMessages.RescheduleTooLate(r.Cutoff));
+        RuleFor(r => r.NewStartsAt)
+            .Must((r, start) => start != r.CurrentStartsAt).WithMessage(ValidationMessages.SameSlot)
+            .MustBeBookableSlot(r => r.Schedule, r => r.Now);
     }
 }

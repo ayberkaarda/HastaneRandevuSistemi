@@ -44,3 +44,17 @@ internal sealed record LeaveDayInput(DateOnly Day, DateOnly Today);
 /// <paramref name="Now"/>. Ownership is decided before this input is built.
 /// </summary>
 internal sealed record CancellationInput(AppointmentStatus Status, DateTime StartsAt, DateTime Now);
+
+/// <summary>
+/// Moving an appointment the caller owns from <paramref name="CurrentStartsAt"/> to
+/// <paramref name="NewStartsAt"/>, checked against the local time <paramref name="Now"/>, the latest
+/// moment before the start at which a move is allowed (<paramref name="Cutoff"/>) and the doctor's
+/// <paramref name="Schedule"/>. Ownership is decided before this input is built.
+/// </summary>
+internal sealed record RescheduleInput(
+    AppointmentStatus Status,
+    DateTime CurrentStartsAt,
+    DateTime NewStartsAt,
+    DateTime Now,
+    TimeSpan Cutoff,
+    DoctorSchedule Schedule);

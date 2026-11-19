@@ -31,7 +31,8 @@ internal static class ServiceFactory
         IDoctorRepository doctors,
         TimeProvider time,
         IAuditLog? audit = null,
-        IDoctorScheduleRepository? schedules = null) =>
+        IDoctorScheduleRepository? schedules = null,
+        AppointmentPolicy? policy = null) =>
         new(
             appointments,
             doctors,
@@ -39,6 +40,8 @@ internal static class ServiceFactory
             time,
             new BookingInputValidator(),
             new CancellationInputValidator(),
+            new RescheduleInputValidator(),
+            policy ?? new AppointmentPolicy(),
             audit ?? NullAuditLog.Instance);
 
     public static ScheduleService Schedules(

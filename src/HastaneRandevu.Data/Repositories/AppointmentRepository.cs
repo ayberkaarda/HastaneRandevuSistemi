@@ -1,3 +1,4 @@
+using System.Data.Common;
 using HastaneRandevu.Data.Persistence;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
@@ -128,10 +129,65 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
         return updated == 1;
     }
 
+    public async Task<bool> RescheduleAsync(
+        int id,
+        int patientId,
+        DateTime newStartsAt,
+        DateTime startsAfter,
+        DateTime startsNoEarlierThan,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        var doctorId = await db.Appointments
+            .Where(a => a.Id == id)
+            .Select(a => (int?)a.DoctorId)
+            .SingleOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (doctorId is not int doctor)
+        {
+            return false;
+        }
+
+        if (await IsSlotTakenAsync(db, doctor, newStartsAt, cancellationToken).ConfigureAwait(false))
+        {
+            throw new SlotAlreadyBookedException();
+        }
+
+        try
+        {
+            // One conditional UPDATE: ownership, status and the time limits are decided by the database
+            // in the same statement that moves the appointment, and the filtered unique index rejects the
+            // move when another booking or move took the new slot in the meantime.
+            var updated = await db.Appointments
+                .Where(a => a.Id == id
+                    && a.PatientId == patientId
+                    && a.Status == AppointmentStatus.Active
+                    && a.StartsAt > startsAfter
+                    && a.StartsAt >= startsNoEarlierThan)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.StartsAt, newStartsAt), cancellationToken)
+                .ConfigureAwait(false);
+            return updated == 1;
+        }
+        catch (Exception ex) when (ex is DbException or DbUpdateException)
+        {
+            // Checked on a fresh context so the provider specific error code does not matter.
+            await using var check = await contextFactory.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
+            if (await IsSlotTakenAsync(check, doctor, newStartsAt, CancellationToken.None).ConfigureAwait(false))
+            {
+                throw new SlotAlreadyBookedException("The slot is already booked.", ex);
+            }
+
+            throw;
+        }
+    }
+
     private static Task<bool> IsSlotTakenAsync(HospitalDbContext db, Appointment appointment, CancellationToken cancellationToken) =>
+        IsSlotTakenAsync(db, appointment.DoctorId, appointment.StartsAt, cancellationToken);
+
+    private static Task<bool> IsSlotTakenAsync(HospitalDbContext db, int doctorId, DateTime startsAt, CancellationToken cancellationToken) =>
         db.Appointments.AnyAsync(
-            a => a.DoctorId == appointment.DoctorId
-                && a.StartsAt == appointment.StartsAt
+            a => a.DoctorId == doctorId
+                && a.StartsAt == startsAt
                 && a.Status == AppointmentStatus.Active,
             cancellationToken);
 

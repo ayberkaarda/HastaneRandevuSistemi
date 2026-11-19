@@ -40,6 +40,7 @@ public sealed class AuditTests
         { AuditEvent.AppointmentCancelled, 8, "appointment.cancelled" },
         { AuditEvent.AccessDenied, 9, "access.denied" },
         { AuditEvent.ScheduleChanged, 10, "schedule.changed" },
+        { AuditEvent.AppointmentRescheduled, 11, "appointment.rescheduled" },
     };
 
     [Theory]

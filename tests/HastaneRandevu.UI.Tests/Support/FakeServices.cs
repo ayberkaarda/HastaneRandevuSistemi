@@ -93,6 +93,17 @@ internal sealed class ControlledAppointmentService : IAppointmentService
         CancelCalls++;
         return new TaskCompletionSource().Task;
     }
+
+    public List<(int AppointmentId, DateTime NewStartsAt)> Reschedules { get; } = [];
+
+    public TaskCompletionSource PendingReschedule { get; private set; } = new();
+
+    public Task RescheduleAsync(UserSession session, int appointmentId, DateTime newStartsAt, CancellationToken cancellationToken = default)
+    {
+        Reschedules.Add((appointmentId, newStartsAt));
+        PendingReschedule = new TaskCompletionSource();
+        return PendingReschedule.Task;
+    }
 }
 
 /// <summary>Schedule service whose reads answer at once and whose writes stay pending until completed.</summary>

@@ -52,5 +52,8 @@ public sealed class DialogTests
 
         public Task CancelAsync(UserSession session, int appointmentId, CancellationToken cancellationToken = default) =>
             Task.FromException(Failure());
+
+        public Task RescheduleAsync(UserSession session, int appointmentId, DateTime newStartsAt, CancellationToken cancellationToken = default) =>
+            Task.FromException(Failure());
     }
 }

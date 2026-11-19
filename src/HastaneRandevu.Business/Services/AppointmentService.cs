@@ -31,6 +31,14 @@ public interface IAppointmentService
 
     /// <summary>Cancels an appointment of the signed-in patient or doctor.</summary>
     Task CancelAsync(UserSession session, int appointmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves an appointment of the signed-in patient to a free slot of the same doctor in one atomic
+    /// step: no cancellation and no new appointment. The appointment must not have started and must be
+    /// at least <see cref="AppointmentPolicy.RescheduleCutoffHours"/> away; the new time follows the
+    /// booking rules.
+    /// </summary>
+    Task RescheduleAsync(UserSession session, int appointmentId, DateTime newStartsAt, CancellationToken cancellationToken = default);
 }
 
 internal sealed class AppointmentService(
@@ -40,10 +48,13 @@ internal sealed class AppointmentService(
     TimeProvider timeProvider,
     IValidator<BookingInput> bookingValidator,
     IValidator<CancellationInput> cancellationValidator,
+    IValidator<RescheduleInput> rescheduleValidator,
+    AppointmentPolicy policy,
     IAuditLog audit) : IAppointmentService
 {
     internal const string SlotTaken = "Bu randevu saatinde doktor zaten dolu. Lütfen başka bir zaman seçin.";
     internal const string CancelFailed = "Randevu iptal edilemedi.";
+    internal const string RescheduleFailed = "Randevu ertelenemedi.";
 
     public Task<IReadOnlyList<DoctorSummary>> GetDoctorsAsync(UserSession session, CancellationToken cancellationToken = default)
     {
@@ -163,6 +174,59 @@ internal sealed class AppointmentService(
         }
 
         audit.Record(AuditEvent.AppointmentCancelled, session.Role);
+    }
+
+    public async Task RescheduleAsync(
+        UserSession session,
+        int appointmentId,
+        DateTime newStartsAt,
+        CancellationToken cancellationToken = default)
+    {
+        RequirePatient(session);
+
+        var appointment = await appointments.GetByIdAsync(appointmentId, cancellationToken).ConfigureAwait(false);
+
+        // A missing appointment and somebody else's appointment get the same answer, so ids cannot be probed.
+        if (appointment is null || !IsOwnedBy(appointment, session))
+        {
+            audit.Record(AuditEvent.AccessDenied, session.Role);
+            throw new AccessDeniedException();
+        }
+
+        var now = LocalNow();
+        var schedule = await LoadScheduleForAsync(appointment.DoctorId, newStartsAt, cancellationToken).ConfigureAwait(false);
+        rescheduleValidator.ValidateOrThrow(new RescheduleInput(
+            appointment.Status,
+            appointment.StartsAt,
+            newStartsAt,
+            now,
+            policy.RescheduleCutoff,
+            schedule));
+
+        bool moved;
+        try
+        {
+            // The repository repeats ownership, status and both time limits in the moving statement.
+            moved = await appointments.RescheduleAsync(
+                appointmentId,
+                session.AccountId,
+                newStartsAt,
+                now,
+                now + policy.RescheduleCutoff,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (SlotAlreadyBookedException ex)
+        {
+            audit.Record(AuditEvent.AppointmentSlotTaken, session.Role);
+            throw new BusinessRuleException(SlotTaken, ex);
+        }
+
+        if (!moved)
+        {
+            throw new BusinessRuleException(RescheduleFailed);
+        }
+
+        audit.Record(AuditEvent.AppointmentRescheduled, session.Role);
     }
 
     private static bool IsOwnedBy(Appointment appointment, UserSession session) => session.Role switch

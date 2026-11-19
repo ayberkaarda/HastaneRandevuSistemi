@@ -40,6 +40,9 @@ public enum AuditEvent
 
     /// <summary>A doctor changed their weekly hours or added or removed a leave day.</summary>
     ScheduleChanged = 10,
+
+    /// <summary>A patient moved an appointment to another slot.</summary>
+    AppointmentRescheduled = 11,
 }
 
 /// <summary>Receives <see cref="AuditEvent"/>s; the application writes them to its log file.</summary>
@@ -62,6 +65,7 @@ public static class AuditCodes
         AuditEvent.AppointmentCancelled => "appointment.cancelled",
         AuditEvent.AccessDenied => "access.denied",
         AuditEvent.ScheduleChanged => "schedule.changed",
+        AuditEvent.AppointmentRescheduled => "appointment.rescheduled",
         _ => throw new ArgumentOutOfRangeException(nameof(auditEvent), auditEvent, "Unknown audit event."),
     };
 
