@@ -22,6 +22,11 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Giriş** ("Giriş Yap"): T.C. Kimlik No ve şifre ile.
 - ✅ **Randevu alma** ("Randevu Al"): branşıyla birlikte bir doktor ("Doktor Seçiniz"), bir gün ("Tarih Seçiniz")
   ve boş bir saat ("Saat Seçiniz") seçilir.
+- ✅ **Doktor arama** ("Doktor Ara"): doktorlar ada ve branşa göre süzülür (Türkçe harflerle veya harfsiz).
+- ✅ **İlk boş randevu** ("İlk Boş Randevu"): seçili doktorun 90 günlük aralıktaki en yakın boş dilimi servis
+  tarafından bulunur ve alınmaya hazır olarak seçicilerde gösterilir.
+- ✅ **Takvim** ("Takvim"): seçili doktorun ay veya hafta görünümü; boş (kaç dilim), dolu, izinli, çalışılmayan ve
+  aralık dışı günler. Boş bir gün seçilince o günün saatleri gösterilir.
 - ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
   ("Randevu İptal").
 - ✅ **Erteleme** ("Ertele"): kendi randevusu aynı doktorun boş bir dilimine tek ve atomik bir adımda taşınır (iptal

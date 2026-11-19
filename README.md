@@ -23,6 +23,11 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Sign-in** ("Giriş Yap", Sign In) with the national id and the password.
 - ✅ **Booking** ("Randevu Al", Book Appointment): choose a doctor ("Doktor Seçiniz", Select Doctor) with their
   branch, a day ("Tarih Seçiniz", Select Date) and a free time ("Saat Seçiniz", Select Time).
+- ✅ **Doctor search** ("Doktor Ara", Find Doctor): filter the doctors by name and branch (Turkish letters or not).
+- ✅ **First free slot** ("İlk Boş Randevu", First Free Slot): the selected doctor's earliest free slot within the
+  90 day window is found by the service and shown in the pickers, ready to book.
+- ✅ **Calendar** ("Takvim", Calendar): the selected doctor's month or week with free (and how many), full, leave,
+  off and out-of-window days; choosing a free day shows its slots.
 - ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own appointments that are not cancelled,
   which can be cancelled ("Randevu İptal", Cancel Appointment) after a confirmation.
 - ✅ **Rescheduling** ("Ertele", Reschedule): an own appointment is moved to a free slot of the same doctor in one
