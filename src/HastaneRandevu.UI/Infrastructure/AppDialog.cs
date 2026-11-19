@@ -18,6 +18,7 @@ public abstract class AppDialog : Form, IStatusSurface
 
     private readonly InfoBar _status = new();
     private readonly Panel _body;
+    private readonly Panel _bodyContent;
     private readonly FlowLayoutPanel _actions;
     private readonly Label _footerNote;
     private Size _contentMinimum;
@@ -47,20 +48,24 @@ public abstract class AppDialog : Form, IStatusSurface
         MinimumSize = SizeFromClientSize(minimumClientSize ?? new Size(clientSize.Width * 4 / 5, clientSize.Height * 4 / 5));
         Prompts = new ScreenPrompts(this);
 
-        Content = new Panel { Name = "content", Dock = DockStyle.Fill, Margin = Padding.Empty };
-        var body = new Panel
+        Content = new Panel { Name = "content", Margin = Padding.Empty };
+        _status.Dock = DockStyle.None;
+        _bodyContent = new Panel
         {
             Name = "bodyContent",
-            Dock = DockStyle.Fill,
             Padding = new Padding(Spacing.XL, Spacing.L, Spacing.XL, 0),
         };
-        body.Controls.Add(Content);
-        body.Controls.Add(_status);
+        _bodyContent.Controls.Add(Content);
+        _bodyContent.Controls.Add(_status);
 
-        // The padding stays inside a scrolling frame of its own: padding on the scrolling panel itself is
-        // not part of what the panel scrolls over, so the last row would stay out of reach.
+        // The padding stays inside a frame of its own in the scrolling panel: padding on the scrolling panel
+        // itself is not part of what the panel scrolls over, so the last row would stay out of reach. The frame
+        // is placed by hand (not docked), so it always covers the visible area and the content's minimum size.
         _body = new Panel { Name = "body", Dock = DockStyle.Fill, AutoScroll = true };
-        _body.Controls.Add(body);
+        _body.Controls.Add(_bodyContent);
+        _bodyContent.Layout += (_, _) => ArrangeContent();
+        _body.Layout += (_, _) => ArrangeBody();
+        _body.ClientSizeChanged += (_, _) => ArrangeBody();
         _status.SizeChanged += (_, _) => KeepContentReachable();
         _status.VisibleChanged += (_, _) => KeepContentReachable();
 
@@ -89,9 +94,17 @@ public abstract class AppDialog : Form, IStatusSurface
     internal InfoBar StatusBar => _status;
 
     /// <summary>Shows a result, validation or error message inside the window; it never takes the focus.</summary>
-    internal void ShowStatus(StatusKind kind, string message) => _status.Show(kind, message);
+    internal void ShowStatus(StatusKind kind, string message)
+    {
+        _status.Show(kind, message);
+        KeepContentReachable();
+    }
 
-    internal void ClearStatus() => _status.Clear();
+    internal void ClearStatus()
+    {
+        _status.Clear();
+        KeepContentReachable();
+    }
 
     void IStatusSurface.ShowStatus(StatusKind kind, string message) => ShowStatus(kind, message);
 
@@ -192,7 +205,7 @@ public abstract class AppDialog : Form, IStatusSurface
         ShowStatus(StatusKind.Info, "Örnek ileti" + Environment.NewLine + "ikinci satır");
         try
         {
-            for (var pass = 0; pass < 24; pass++)
+            for (var pass = 0; pass < 40; pass++)
             {
                 ClientSize = trial;
                 PerformLayout();
@@ -224,12 +237,56 @@ public abstract class AppDialog : Form, IStatusSurface
         PerformLayout();
     }
 
+    /// <summary>The content at its minimum size plus the message strip, while one is shown.</summary>
+    private Size ScrollMinimum =>
+        _contentMinimum.IsEmpty ? Size.Empty : new Size(_contentMinimum.Width, _contentMinimum.Height + (_status.IsShown ? _status.Height : 0));
+
     /// <summary>The scrollable area always holds the content at its minimum size plus the message strip.</summary>
     private void KeepContentReachable()
     {
         if (!_contentMinimum.IsEmpty)
         {
-            _body.AutoScrollMinSize = new Size(_contentMinimum.Width, _contentMinimum.Height + (_status.IsShown ? _status.Height : 0));
+            _body.AutoScrollMinSize = ScrollMinimum;
+        }
+
+        ArrangeBody();
+    }
+
+    /// <summary>The content frame covers the visible part of the body, and never less than the content needs.</summary>
+    private void ArrangeBody()
+    {
+        var minimum = ScrollMinimum;
+        var client = _body.ClientSize;
+        var bounds = new Rectangle(_body.AutoScrollPosition, new Size(Math.Max(client.Width, minimum.Width), Math.Max(client.Height, minimum.Height)));
+        if (_bodyContent.Bounds != bounds)
+        {
+            _bodyContent.Bounds = bounds;
+        }
+
+        // Placed directly as well: a change that arrives while the frame is laid out would be lost otherwise.
+        ArrangeContent();
+    }
+
+    /// <summary>The message strip on top (while shown) and the content below it, over the whole frame.</summary>
+    private void ArrangeContent()
+    {
+        var area = _bodyContent.DisplayRectangle;
+        var top = area.Top;
+        if (_status.IsShown)
+        {
+            // Setting the width lets the strip measure its height for that width first.
+            if (_status.Width != area.Width || _status.Location != area.Location)
+            {
+                _status.SetBounds(area.Left, top, area.Width, _status.Height);
+            }
+
+            top += _status.Height;
+        }
+
+        var content = new Rectangle(area.Left, top, area.Width, Math.Max(0, area.Bottom - top));
+        if (Content.Bounds != content)
+        {
+            Content.Bounds = content;
         }
     }
 
@@ -303,7 +360,7 @@ public abstract class AppDialog : Form, IStatusSurface
     /// <summary>How far the controls reach beyond the visible area of their containers (right, bottom).</summary>
     private static Size Overflow(Control root)
     {
-        const int Tolerance = 1; // Field wrappers settle the height of drop-down lists one pixel late.
+        const int Tolerance = 0;
         var width = 0;
         var height = 0;
         foreach (Control child in root.Controls)
@@ -313,15 +370,22 @@ public abstract class AppDialog : Form, IStatusSurface
                 continue;
             }
 
-            // Labels wrap or end in an ellipsis inside their column; the inputs and buttons decide the size.
-            if (child is not (Label or Panel or TableLayoutPanel or FlowLayoutPanel or GroupBox) && child.Width > 0 && child.Height > 0)
+            if (child is not (Panel or TableLayoutPanel or FlowLayoutPanel or GroupBox) && child.Width > 0 && child.Height > 0)
             {
+                // Labels wrap or end in an ellipsis inside their column, so only their height counts: text that
+                // wraps onto more lines needs a taller window. Inputs and buttons count in both directions.
+                var label = child is Label;
+
                 // Position of the control in the client area of each ancestor; a container of zero size
                 // cuts off everything in it.
                 var offset = child.Location;
                 for (var ancestor = child.Parent; ancestor is not null; ancestor = ancestor.Parent)
                 {
-                    width = Math.Max(width, Math.Max(offset.X + child.Width - ancestor.ClientSize.Width, -offset.X) - Tolerance);
+                    if (!label)
+                    {
+                        width = Math.Max(width, Math.Max(offset.X + child.Width - ancestor.ClientSize.Width, -offset.X) - Tolerance);
+                    }
+
                     height = Math.Max(height, offset.Y + child.Height - ancestor.ClientSize.Height - Tolerance);
                     offset = new Point(offset.X + ancestor.Left, offset.Y + ancestor.Top);
                 }
@@ -330,6 +394,42 @@ public abstract class AppDialog : Form, IStatusSurface
             var nested = Overflow(child);
             width = Math.Max(width, nested.Width);
             height = Math.Max(height, nested.Height);
+        }
+
+        var overlap = Overlap(root);
+        return new Size(Math.Max(width, overlap.Width), Math.Max(height, overlap.Height));
+    }
+
+    /// <summary>
+    /// How far siblings overlap: a table row that is shorter than the smallest size of what it holds lets that
+    /// control run into the next row while both still lie inside their container. The overlap counts as missing
+    /// height (or width, for controls side by side).
+    /// </summary>
+    private static Size Overlap(Control parent)
+    {
+        var children = parent.Controls.Cast<Control>().Where(c => c.Width > 0 && c.Height > 0 && c is not InfoBar).ToList();
+        var width = 0;
+        var height = 0;
+        for (var i = 0; i < children.Count; i++)
+        {
+            for (var j = i + 1; j < children.Count; j++)
+            {
+                var a = children[i].Bounds;
+                var b = children[j].Bounds;
+                var dx = Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left);
+                var dy = Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top);
+                if (dx > 0 && dy > 0)
+                {
+                    if (dy <= dx)
+                    {
+                        height = Math.Max(height, dy);
+                    }
+                    else
+                    {
+                        width = Math.Max(width, dx);
+                    }
+                }
+            }
         }
 
         return new Size(width, height);
