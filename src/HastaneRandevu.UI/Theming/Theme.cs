@@ -18,6 +18,12 @@ internal static class Theme
 
     public static ThemePalette Current { get; private set; } = ThemePalette.Light;
 
+    /// <summary>The theme setting the palette was chosen from; kept to choose again when Windows changes.</summary>
+    public static ThemeMode Mode { get; private set; } = ThemeMode.Light;
+
+    /// <summary>Raised on the UI thread after the palette changed; the argument is the palette that was replaced.</summary>
+    public static event Action<ThemePalette>? Changed;
+
     /// <summary>
     /// Extra factor on top of the monitor DPI for fonts and painted metrics. It stays 1 in the application;
     /// the offscreen screenshot tool sets 2 to render a 2x image on a 96 DPI desktop, and the layout tests
@@ -28,8 +34,29 @@ internal static class Theme
     public static ThemeFonts Fonts => _fonts ??= new ThemeFonts(RenderScale);
 
     /// <summary>Selects the palette; existing windows are not repainted.</summary>
-    public static void Initialize(ThemeMode mode, bool highContrast, bool systemPrefersDark) =>
+    public static void Initialize(ThemeMode mode, bool highContrast, bool systemPrefersDark)
+    {
+        Mode = mode;
         Use(Resolve(mode, highContrast, systemPrefersDark));
+    }
+
+    /// <summary>
+    /// Chooses the palette again after Windows changed (high contrast or the app mode) and tells the open
+    /// screens through <see cref="Changed"/>. Call it on the UI thread. Returns whether the palette changed.
+    /// </summary>
+    public static bool Reapply(bool highContrast, bool systemPrefersDark)
+    {
+        var next = Resolve(Mode, highContrast, systemPrefersDark);
+        var old = Current;
+        if (next.IsHighContrast == old.IsHighContrast && (next.IsHighContrast || ReferenceEquals(next, old)))
+        {
+            return false;
+        }
+
+        Use(next);
+        Changed?.Invoke(old);
+        return true;
+    }
 
     /// <summary>Activates a palette and render scale; fonts are recreated on next use.</summary>
     public static void Use(ThemePalette palette, float renderScale = 1F)
