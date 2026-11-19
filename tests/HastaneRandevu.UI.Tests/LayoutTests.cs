@@ -9,16 +9,12 @@ public sealed class LayoutTests
     [Fact]
     public void DoctorPanel_FitsItsWindow() => Run(() =>
     {
-        using var form = TestForms.DoctorPanel(new ControlledAppointmentService());
-
-        LayoutAssert.FitsInside(form);
+        LayoutAssert.FitsInsideOnEveryScreen(() => TestForms.DoctorPanel(new ControlledAppointmentService()));
     });
 
     [Fact]
     public void PatientPanel_FitsItsWindow() => Run(() =>
     {
-        using var form = TestForms.PatientPanel(new ControlledAppointmentService());
-
-        LayoutAssert.FitsInside(form);
+        LayoutAssert.FitsInsideOnEveryScreen(() => TestForms.PatientPanel(new ControlledAppointmentService()));
     });
 }

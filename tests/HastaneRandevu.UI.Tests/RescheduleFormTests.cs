@@ -105,8 +105,6 @@ public sealed class RescheduleFormTests
     [Fact]
     public void Layout_KeepsEveryControlInsideTheWindow() => Run(() =>
     {
-        using var form = new ErteleForm(new ControlledAppointmentService(), Sessions.Patient, Appointment());
-
-        LayoutAssert.FitsInside(form);
+        LayoutAssert.FitsInsideOnEveryScreen(() => new ErteleForm(new ControlledAppointmentService(), Sessions.Patient, Appointment()));
     });
 }

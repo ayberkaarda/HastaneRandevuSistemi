@@ -2,6 +2,7 @@ using System.Globalization;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.UI.Infrastructure;
+using HastaneRandevu.UI.Theming;
 
 namespace HastaneRandevu.UI
 {
@@ -10,7 +11,7 @@ namespace HastaneRandevu.UI
     /// slots), full, a leave day, a day off or outside the booking window. Choosing a free day closes the
     /// dialog with <see cref="SelectedDay"/>. The days come from the service; navigation is latest-wins.
     /// </summary>
-    public sealed class TakvimForm : Form
+    public sealed class TakvimForm : AppDialog
     {
         private const int Columns = 7;
         private const int MonthRows = 6;
@@ -20,20 +21,26 @@ namespace HastaneRandevu.UI
         private readonly UserSession _session;
         private readonly DoctorSummary _doctor;
         private readonly RequestSequence _loads = new();
-        private readonly RadioButton radioButtonAy = new() { Name = "radioButtonAy", Text = "Ay", AutoSize = true, Checked = true };
-        private readonly RadioButton radioButtonHafta = new() { Name = "radioButtonHafta", Text = "Hafta", AutoSize = true };
-        private readonly Button buttonOnceki = new() { Name = "buttonOnceki", Text = "< Önceki", AutoSize = true };
-        private readonly Button buttonSonraki = new() { Name = "buttonSonraki", Text = "Sonraki >", AutoSize = true };
-        private readonly Label labelDonem = new() { Name = "labelDonem", AutoSize = true, Anchor = AnchorStyles.Left };
-        private readonly TableLayoutPanel tableGunler = new() { Name = "tableGunler", Dock = DockStyle.Fill, ColumnCount = Columns, RowCount = MonthRows + 1 };
-        private readonly Button[] _dayButtons = new Button[Columns * MonthRows];
+        private readonly SegmentButton radioButtonAy = new() { Name = "radioButtonAy", Text = "Ay", Checked = true };
+        private readonly SegmentButton radioButtonHafta = new() { Name = "radioButtonHafta", Text = "Hafta" };
+        private readonly ThemedButton buttonOnceki = FormLayout.Button("buttonOnceki", "‹  Önceki", ButtonKind.Subtle);
+        private readonly ThemedButton buttonSonraki = FormLayout.Button("buttonSonraki", "Sonraki  ›", ButtonKind.Subtle);
+        private readonly Label labelDonem = new() { Name = "labelDonem", AutoSize = true, Anchor = AnchorStyles.Left, UseMnemonic = false };
+        private readonly TableLayoutPanel tableGunler = new() { Name = "tableGunler", Dock = DockStyle.Fill, ColumnCount = Columns, RowCount = MonthRows + 1, Margin = Padding.Empty };
+        private readonly DayButton[] _dayButtons = new DayButton[Columns * MonthRows];
         private bool _binding;
 
         public TakvimForm(IAvailabilityService availability, UserSession session, DoctorSummary doctor)
+            : base(
+                "Takvim",
+                (doctor ?? throw new ArgumentNullException(nameof(doctor))).DisplayName + " · boş bir güne tıklayın; gün, randevu tarihine yazılır.",
+                Glyphs.Calendar,
+                new Size(880, 660),
+                new Size(720, 560),
+                modal: true)
         {
             ArgumentNullException.ThrowIfNull(availability);
             ArgumentNullException.ThrowIfNull(session);
-            ArgumentNullException.ThrowIfNull(doctor);
 
             _availability = availability;
             _session = session;
@@ -41,8 +48,7 @@ namespace HastaneRandevu.UI
             PeriodDay = DateOnly.FromDateTime(DateTime.Today);
 
             BuildLayout();
-            Icon = AppAssets.Icon;
-            Text = "Hastane Randevu - Takvim: " + doctor.DisplayName;
+            Text = AppText.Title + " - Takvim: " + doctor.DisplayName;
 
             Load += async (_, _) => await ShowPeriodAsync();
             radioButtonAy.CheckedChanged += async (_, _) =>
@@ -141,20 +147,48 @@ namespace HastaneRandevu.UI
 
         private void ShowDays(IReadOnlyList<CalendarDay> days, int count)
         {
+            // The week view uses the first row of days only; it takes the whole height.
+            tableGunler.SuspendLayout();
+            for (var r = 0; r < MonthRows; r++)
+            {
+                tableGunler.RowStyles[r + 1] = count > Columns || r == 0
+                    ? new RowStyle(SizeType.Percent, 100f / (count / Columns))
+                    : new RowStyle(SizeType.Absolute, 0);
+            }
+
             for (var i = 0; i < _dayButtons.Length; i++)
             {
                 var button = _dayButtons[i];
                 button.Visible = i < count;
+
+                // Days outside the week take no room, so the rows of the week view can shrink to nothing.
+                button.MinimumSize = i < count ? new Size(0, Sizes.CalendarDayHeight) : Size.Empty;
+                if (i >= count)
+                {
+                    button.Height = 0; // A hidden control is not laid out and would keep its old height.
+                }
                 if (i < count && i < days.Count)
                 {
                     var day = days[i];
                     button.Text = Describe(day);
                     button.Tag = day;
+                    button.InPeriod = !MonthView || (day.Date.Month == PeriodDay.Month && day.Date.Year == PeriodDay.Year);
                     button.Enabled = day.Status == CalendarDayStatus.Available;
                     button.AccessibleName = $"{day.Date.ToString("d MMMM dddd", Turkish)}, {Describe(day).Replace(Environment.NewLine, " ", StringComparison.Ordinal)}";
+                    button.Invalidate();
                 }
             }
+
+            SetGridMinimum(count / Columns);
+            tableGunler.ResumeLayout(true);
         }
+
+        /// <summary>
+        /// The grid never shrinks below the height its rows of days need; a smaller window scrolls instead of
+        /// letting the days overlap (rows that share the height by percentage would shrink below their tiles).
+        /// </summary>
+        private void SetGridMinimum(int weeks) =>
+            tableGunler.MinimumSize = new Size(0, Theme.Fonts.Caption.Height + Spacing.XS + (weeks * (Sizes.CalendarDayHeight + 6)));
 
         /// <summary>Chooses the day shown at <paramref name="index"/>, as a click on it does.</summary>
         internal void ChooseDayAt(int index) => Choose(_dayButtons[index]);
@@ -170,28 +204,35 @@ namespace HastaneRandevu.UI
 
         private void BuildLayout()
         {
-            SuspendLayout();
-            AutoScaleMode = AutoScaleMode.Font;
-            Font = new Font("Segoe UI", 9F);
-            StartPosition = FormStartPosition.CenterParent;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ClientSize = new Size(760, 520);
+            Name = nameof(TakvimForm);
 
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Padding = new Padding(12) };
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var bar = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
-            bar.Controls.AddRange([radioButtonAy, radioButtonHafta, buttonOnceki, buttonSonraki, labelDonem]);
-            root.Controls.Add(bar, 0, 0);
+            // Toolbar: view, navigation and the period on screen.
+            labelDonem.Font = Theme.Fonts.Subtitle;
+            labelDonem.ForeColor = Theme.Current.Text;
+            labelDonem.Margin = new Padding(Spacing.S, 0, Spacing.S, 0);
+            labelDonem.MinimumSize = new Size(190, 0);
+            labelDonem.TextAlign = ContentAlignment.MiddleCenter;
+            radioButtonAy.AccessibleName = "Ay görünümü";
+            radioButtonHafta.AccessibleName = "Hafta görünümü";
+            radioButtonHafta.Margin = new Padding(0, 0, Spacing.L, 0);
+            buttonOnceki.Margin = buttonSonraki.Margin = Padding.Empty;
+            var toolbar = FormLayout.Bar(
+                "calendarToolbar",
+                (radioButtonAy, false),
+                (radioButtonHafta, false),
+                (buttonOnceki, false),
+                (labelDonem, false),
+                (buttonSonraki, false),
+                (FormLayout.Spacer(), true));
+            toolbar.Margin = new Padding(0, 0, 0, Spacing.M);
 
+            // Weekday names and the day tiles.
+            tableGunler.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             for (var c = 0; c < Columns; c++)
             {
                 tableGunler.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / Columns));
             }
 
-            tableGunler.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             for (var r = 0; r < MonthRows; r++)
             {
                 tableGunler.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / MonthRows));
@@ -201,22 +242,69 @@ namespace HastaneRandevu.UI
             for (var c = 0; c < Columns; c++)
             {
                 tableGunler.Controls.Add(
-                    new Label { Text = monday.AddDays(c).ToString("ddd", Turkish), AutoSize = true, Anchor = AnchorStyles.None },
+                    new Label
+                    {
+                        Name = "labelGun" + c.ToString(CultureInfo.InvariantCulture),
+                        Text = monday.AddDays(c).ToString("dddd", Turkish),
+                        AutoSize = true,
+                        Font = Theme.Fonts.Caption,
+                        ForeColor = Theme.Current.TextMuted,
+                        Anchor = AnchorStyles.Left,
+                        Margin = new Padding(Spacing.XS + 2, 0, 0, Spacing.XS),
+                    },
                     c,
                     0);
             }
 
             for (var i = 0; i < _dayButtons.Length; i++)
             {
-                var button = new Button { Name = "buttonGun" + i.ToString(CultureInfo.InvariantCulture), Dock = DockStyle.Fill, Enabled = false, UseVisualStyleBackColor = true };
+                var button = new DayButton { Name = "buttonGun" + i.ToString(CultureInfo.InvariantCulture), Dock = DockStyle.Fill, Enabled = false };
                 button.Click += (_, _) => Choose(button);
                 _dayButtons[i] = button;
                 tableGunler.Controls.Add(button, i % Columns, (i / Columns) + 1);
             }
 
-            root.Controls.Add(tableGunler, 0, 1);
-            Controls.Add(root);
-            ResumeLayout(true);
+            SetGridMinimum(MonthRows);
+            var calendarCard = FormLayout.Card("calendarCard", null, tableGunler);
+            calendarCard.Padding = new Padding(Spacing.M);
+            calendarCard.Margin = new Padding(0, 0, 0, Spacing.M);
+
+            Content.Controls.Add(FormLayout.Page("page", (toolbar, false), (calendarCard, true), (Legend(), false)));
+            SetFooterNote("Yalnızca boş günler seçilebilir; seçtiğiniz gün randevu tarihine yazılır.");
+            var close = CreateCloseButton("buttonKapat");
+            close.DialogResult = DialogResult.Cancel;
+            SetFooterButtons(close);
+            FinishLayout();
+        }
+
+        /// <summary>What the colors of the days mean.</summary>
+        private static FlowLayoutPanel Legend()
+        {
+            var legend = new FlowLayoutPanel
+            {
+                Name = "legend",
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                WrapContents = true,
+                Margin = new Padding(0, 0, 0, Spacing.S),
+            };
+            foreach (var (status, text) in new[]
+            {
+                (CalendarDayStatus.Available, "Boş saati olan gün"),
+                (CalendarDayStatus.Full, "Dolu"),
+                (CalendarDayStatus.Leave, "İzinli"),
+                (CalendarDayStatus.NotWorking, "Çalışılmayan gün"),
+            })
+            {
+                var swatch = new Swatch(status) { Anchor = AnchorStyles.Left, Margin = new Padding(0, Spacing.XS, Spacing.XS + 2, 0) };
+                var label = FormLayout.Hint(text);
+                label.Margin = new Padding(0, 0, Spacing.L, 0);
+                label.Anchor = AnchorStyles.Left;
+                legend.Controls.Add(swatch);
+                legend.Controls.Add(label);
+            }
+
+            return legend;
         }
     }
 }

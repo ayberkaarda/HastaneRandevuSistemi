@@ -1,6 +1,8 @@
+using System.Globalization;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.UI.Infrastructure;
+using HastaneRandevu.UI.Theming;
 
 namespace HastaneRandevu.UI
 {
@@ -8,7 +10,7 @@ namespace HastaneRandevu.UI
     /// Patient panel: find a doctor by name or branch, see the doctor's calendar or the first free slot,
     /// book a slot and list, move or cancel own appointments.
     /// </summary>
-    public partial class MainForm : Form
+    public sealed class MainForm : AppDialog
     {
         internal const string AllBranches = "Tüm branşlar";
 
@@ -27,6 +29,24 @@ namespace HastaneRandevu.UI
         private readonly RequestSequence _searchRequests = new();
         private readonly RequestSequence _firstFreeRequests = new();
 
+        private readonly Label labelHastaBilgi = new() { Name = nameof(labelHastaBilgi), AutoSize = true, UseMnemonic = false, TextAlign = ContentAlignment.MiddleRight };
+        private readonly PlaceholderLabel labelHatirlatma = new() { Name = nameof(labelHatirlatma), Placeholder = "Yakında başlayacak bir randevunuz yok." };
+        private readonly TextBox textBoxDoktorAra = new() { Name = nameof(textBoxDoktorAra), MaxLength = 100, PlaceholderText = "Ad soyad" };
+        private readonly ThemedComboBox comboBoxBrans = FormLayout.Picker(nameof(comboBoxBrans), 160);
+        private readonly ThemedComboBox comboBoxDoktorlar = FormLayout.Picker(nameof(comboBoxDoktorlar), 300, "Doktor seçin");
+        private readonly DateTimePicker dateTimePickerRandevu = FormLayout.DatePicker(nameof(dateTimePickerRandevu));
+        private readonly ThemedComboBox comboBoxSaat = FormLayout.Picker(nameof(comboBoxSaat), 110, "Saat seçin");
+        private readonly ThemedButton buttonIlkBos = FormLayout.Button(nameof(buttonIlkBos), "İlk boş saat", ButtonKind.Secondary, Glyphs.Clock);
+        private readonly ThemedButton buttonTakvim = FormLayout.Button(nameof(buttonTakvim), "Takvimde gör", ButtonKind.Secondary, Glyphs.Calendar);
+        private readonly Label labelIlkBos = new() { Name = nameof(labelIlkBos), AutoSize = true, UseMnemonic = false };
+        private readonly ThemedButton buttonRandevuAl = FormLayout.Button(nameof(buttonRandevuAl), "Randevu Al", ButtonKind.Primary);
+        private readonly ThemedListBox listBoxRandevuGecmisi = new() { Name = nameof(listBoxRandevuGecmisi), AccessibleName = "Aktif randevularım" };
+        private readonly ThemedButton buttonErtele = FormLayout.Button(nameof(buttonErtele), "Ertele", ButtonKind.Secondary, Glyphs.Reschedule);
+        private readonly ThemedButton buttonRandevuIptal = FormLayout.Button(nameof(buttonRandevuIptal), "İptal Et", ButtonKind.Danger);
+        private readonly ThemedButton buttonGecmisCsv = FormLayout.Button(nameof(buttonGecmisCsv), "Geçmişi dışa aktar", ButtonKind.Subtle, Glyphs.Download);
+        private readonly CardPanel _reminderCard = new() { Name = "reminderCard" };
+        private readonly GlyphBadge _reminderBadge = new(Glyphs.Reminder, 36, 13F) { Name = "reminderBadge" };
+
         // While above zero, list and picker changes are made by the code, not by the user, and must not
         // start loads as a user selection would.
         private int _binding;
@@ -41,6 +61,12 @@ namespace HastaneRandevu.UI
             IReminderNotifier notifier,
             IFormFactory forms,
             UserSession session)
+            : base(
+                "Hasta paneli",
+                "Doktor arayın, boş saati seçin; randevularınızı erteleyin ya da iptal edin.",
+                Glyphs.Calendar,
+                new Size(1040, 660),
+                new Size(900, 580))
         {
             ArgumentNullException.ThrowIfNull(appointments);
             ArgumentNullException.ThrowIfNull(availability);
@@ -57,12 +83,9 @@ namespace HastaneRandevu.UI
             _notifier = notifier;
             _forms = forms;
             _session = session;
-            Prompts = new MessageBoxPrompts(this);
 
-            InitializeComponent();
-            Icon = AppAssets.Icon;
-            pictureBoxLogo.Image = AppAssets.Logo;
-            labelHastaBilgi.Text = $"Hoşgeldiniz, {session.DisplayName} (T.C. {session.MaskedNationalId})";
+            BuildLayout();
+            labelHastaBilgi.Text = $"{session.DisplayName}{Environment.NewLine}T.C. {session.MaskedNationalId}";
 
             var today = DateTime.Today;
             Bind(() =>
@@ -72,11 +95,45 @@ namespace HastaneRandevu.UI
                 comboBoxBrans.Items.Add(AllBranches);
                 comboBoxBrans.SelectedIndex = 0;
             });
-        }
 
-        /// <summary>Confirmation and information dialogs; replaced in tests so no window opens.</summary>
-        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        internal IUserPrompts Prompts { get; set; }
+            Load += async (_, _) => await LoadAsync();
+            textBoxDoktorAra.TextChanged += async (_, _) =>
+            {
+                if (_binding == 0)
+                {
+                    await SearchDoctorsAsync();
+                }
+            };
+            comboBoxBrans.SelectedIndexChanged += async (_, _) =>
+            {
+                if (_binding == 0)
+                {
+                    await SearchDoctorsAsync();
+                }
+            };
+            comboBoxDoktorlar.SelectedIndexChanged += async (_, _) =>
+            {
+                if (_binding == 0)
+                {
+                    labelIlkBos.Text = string.Empty;
+                    await LoadSlotsAsync();
+                }
+            };
+            dateTimePickerRandevu.ValueChanged += async (_, _) =>
+            {
+                if (_binding == 0)
+                {
+                    await LoadSlotsAsync();
+                }
+            };
+            labelHatirlatma.TextChanged += (_, _) => ShowReminderStyle();
+            buttonIlkBos.Click += async (_, _) => await FindFirstFreeAsync();
+            buttonTakvim.Click += async (_, _) => await ShowCalendarAsync();
+            buttonRandevuAl.Click += async (_, _) => await BookAsync();
+            buttonRandevuIptal.Click += async (_, _) => await CancelAsync();
+            buttonErtele.Click += async (_, _) => await RescheduleSelectedAsync();
+            buttonGecmisCsv.Click += async (_, _) => await ExportHistoryAsync();
+        }
 
         /// <summary>Loads the branches, the doctors, the patient's appointments and the reminders.</summary>
         internal Task LoadAsync() =>
@@ -168,6 +225,7 @@ namespace HastaneRandevu.UI
                     comboBoxDoktorlar.ReplaceItems(doctors);
                     comboBoxDoktorlar.SelectedItem = doctors.FirstOrDefault(d => d.Id == selected);
                 });
+                comboBoxDoktorlar.Placeholder = doctors.Count == 0 ? "Aramaya uyan doktor yok" : "Doktor seçin";
                 if (comboBoxDoktorlar.SelectedItem is null)
                 {
                     _slotRequests.Next(); // answers for the doctor that left the list are stale
@@ -186,9 +244,11 @@ namespace HastaneRandevu.UI
             comboBoxSaat.Items.Clear();
             if (comboBoxDoktorlar.SelectedItem is not DoctorSummary doctor)
             {
+                comboBoxSaat.Placeholder = "Saat seçin";
                 return;
             }
 
+            comboBoxSaat.Placeholder = "Yükleniyor…";
             var day = dateTimePickerRandevu.Value.Date;
             await this.RunAsync(async () =>
             {
@@ -197,6 +257,7 @@ namespace HastaneRandevu.UI
                 {
                     var items = slots.Select(s => new SlotItem(s)).ToList();
                     comboBoxSaat.ReplaceItems(items);
+                    comboBoxSaat.Placeholder = items.Count == 0 ? "Bu gün boş saat yok" : "Saat seçin";
                     if (select is { } wanted)
                     {
                         comboBoxSaat.SelectedItem = items.FirstOrDefault(i => i.StartsAt == wanted);
@@ -331,6 +392,13 @@ namespace HastaneRandevu.UI
             }
 
             using var dialog = _forms.Create<ErteleForm>(_session, item.Appointment);
+
+            // The dialog closes once the appointment has moved; its result is reported in this window.
+            if (Prompts is ScreenPrompts)
+            {
+                dialog.Prompts = new ScreenPrompts(dialog) { Results = this };
+            }
+
             if (dialog.ShowDialog(this) != DialogResult.OK)
             {
                 return false;
@@ -347,10 +415,21 @@ namespace HastaneRandevu.UI
         private async Task RefreshAppointmentsAsync()
         {
             var request = _listRequests.Next();
-            var appointments = await _appointments.GetMyAppointmentsAsync(_session);
-            if (_listRequests.IsLatest(request) && !IsDisposed)
+            listBoxRandevuGecmisi.IsLoading = true;
+            try
             {
-                listBoxRandevuGecmisi.ReplaceItems(appointments.Select(a => new PatientAppointmentItem(a)));
+                var appointments = await _appointments.GetMyAppointmentsAsync(_session);
+                if (_listRequests.IsLatest(request) && !IsDisposed)
+                {
+                    listBoxRandevuGecmisi.ReplaceItems(appointments.Select(a => new PatientAppointmentItem(a)));
+                }
+            }
+            finally
+            {
+                if (_listRequests.IsLatest(request))
+                {
+                    listBoxRandevuGecmisi.IsLoading = false;
+                }
             }
         }
 
@@ -368,53 +447,103 @@ namespace HastaneRandevu.UI
             }
         }
 
-        private async void MainForm_Load(object? sender, EventArgs e) => await LoadAsync();
-
-        private async void textBoxDoktorAra_TextChanged(object? sender, EventArgs e)
+        /// <summary>An upcoming appointment turns the reminder card warm; without one it stays quiet.</summary>
+        private void ShowReminderStyle()
         {
-            if (_binding == 0)
-            {
-                await SearchDoctorsAsync();
-            }
+            var p = Theme.Current;
+            var due = labelHatirlatma.Text.Length > 0;
+            _reminderCard.Fill = due ? p.WarmSubtle : null;
+            _reminderCard.Edge = due ? p.Warm : null;
+            _reminderBadge.Fill = due ? p.Surface : p.SurfaceAlt;
+            _reminderBadge.GlyphColor = due ? p.WarmText : p.TextMuted;
+            _reminderCard.Invalidate(invalidateChildren: true);
         }
 
-        private async void comboBoxBrans_SelectedIndexChanged(object? sender, EventArgs e)
+        private void BuildLayout()
         {
-            if (_binding == 0)
+            Name = nameof(MainForm);
+            var p = Theme.Current;
+            labelHastaBilgi.Font = Theme.Fonts.Body;
+            labelHastaBilgi.ForeColor = p.TextSecondary;
+            SetHeaderAside(labelHastaBilgi);
+
+            // Booking card: search, doctor, day and time, the shortcuts and the primary action.
+            var search = FormLayout.FieldRow(
+                "searchRow",
+                (FormLayout.Field("Doktor &ara", FormLayout.Input(textBoxDoktorAra)), 55),
+                (FormLayout.Field("&Branş", comboBoxBrans), 45));
+            var doctor = FormLayout.Field("&Doktor", comboBoxDoktorlar);
+            doctor.Margin = new Padding(0, 0, 0, Spacing.M);
+            var slot = FormLayout.FieldRow(
+                "slotRow",
+                (FormLayout.Field("&Tarih", dateTimePickerRandevu), 0),
+                (FormLayout.Field("&Saat", comboBoxSaat), 100));
+            buttonIlkBos.Margin = new Padding(0, 0, Spacing.S, 0);
+            buttonTakvim.Margin = Padding.Empty;
+            var shortcuts = FormLayout.Bar("shortcutBar", (buttonIlkBos, false), (buttonTakvim, false), (FormLayout.Spacer(), true));
+            labelIlkBos.Font = Theme.Fonts.BodyStrong;
+            labelIlkBos.ForeColor = p.AccentText;
+            labelIlkBos.Margin = new Padding(0, Spacing.S, 0, 0);
+            buttonRandevuAl.AutoSize = false;
+            buttonRandevuAl.Dock = DockStyle.Top;
+            buttonRandevuAl.Margin = new Padding(0, Spacing.L, 0, 0);
+            var bookingNote = FormLayout.Hint("Randevular 30 dakikalıktır ve en fazla 90 gün sonrasına alınabilir.");
+            bookingNote.Name = "bookingHint";
+            bookingNote.Margin = new Padding(0, Spacing.M, 0, 0);
+            var booking = FormLayout.Stack("bookingForm", search, doctor, slot, shortcuts, labelIlkBos, buttonRandevuAl, bookingNote);
+            buttonRandevuAl.Dock = DockStyle.Top;
+            var bookingCard = FormLayout.Card("bookingCard", "Randevu al", booking);
+            booking.Dock = DockStyle.Top;
+            bookingCard.Margin = new Padding(0, 0, Spacing.S, Spacing.L);
+
+            // Reminder card: a bell and the upcoming appointment, or a quiet line when there is none.
+            _reminderBadge.Margin = new Padding(0, 0, Spacing.M, 0);
+            _reminderBadge.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+            labelHatirlatma.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            var reminder = new TableLayoutPanel
             {
-                await SearchDoctorsAsync();
-            }
+                Name = "reminderLayout",
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 2,
+                RowCount = 1,
+                Dock = DockStyle.Top,
+                Margin = Padding.Empty,
+            };
+            reminder.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            reminder.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            reminder.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            reminder.Controls.Add(_reminderBadge, 0, 0);
+            reminder.Controls.Add(labelHatirlatma, 1, 0);
+            _reminderCard.Controls.Add(reminder);
+            _reminderCard.Padding = new Padding(Spacing.L, Spacing.M, Spacing.L, Spacing.M);
+            _reminderCard.AutoSize = true;
+            _reminderCard.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            ShowReminderStyle();
+
+            // Appointment list with its actions.
+            listBoxRandevuGecmisi.Describe = item => item is PatientAppointmentItem appointment ? Row(appointment.Appointment) : new ListRow(item.ToString() ?? string.Empty);
+            listBoxRandevuGecmisi.EmptyText = "Aktif randevunuz yok. Soldan doktor ve saat seçerek randevu alabilirsiniz.";
+            buttonErtele.Margin = new Padding(0, 0, Spacing.S, 0);
+            buttonRandevuIptal.Margin = Padding.Empty;
+            buttonGecmisCsv.Margin = Padding.Empty;
+            var actions = FormLayout.Bar("listActions", (buttonErtele, false), (buttonRandevuIptal, false), (FormLayout.Spacer(), true), (buttonGecmisCsv, false));
+            actions.Margin = new Padding(0, Spacing.M, 0, 0);
+            var listCard = FormLayout.Card("appointmentsCard", "Randevularım", FormLayout.Page("appointmentsPage", (listBoxRandevuGecmisi, true), (actions, false)));
+            listCard.Margin = Padding.Empty;
+
+            var right = FormLayout.Page("rightColumn", (_reminderCard, false), (listCard, true));
+            Content.Controls.Add(FormLayout.Columns("layout", bookingCard, 42, right));
+
+            SetFooterNote("Ertelemek ya da iptal etmek için listeden bir randevu seçin.");
+            SetFooterButtons(CreateCloseButton("buttonCikis", "Çıkış"));
+            FinishLayout();
         }
 
-        private async void comboBoxDoktorlar_SelectedIndexChanged(object? sender, EventArgs e)
-        {
-            if (_binding == 0)
-            {
-                labelIlkBos.Text = string.Empty;
-                await LoadSlotsAsync();
-            }
-        }
-
-        private async void dateTimePickerRandevu_ValueChanged(object? sender, EventArgs e)
-        {
-            if (_binding == 0)
-            {
-                await LoadSlotsAsync();
-            }
-        }
-
-        private async void buttonIlkBos_Click(object? sender, EventArgs e) => await FindFirstFreeAsync();
-
-        private async void buttonTakvim_Click(object? sender, EventArgs e) => await ShowCalendarAsync();
-
-        private async void buttonRandevuAl_Click(object? sender, EventArgs e) => await BookAsync();
-
-        private async void buttonRandevuIptal_Click(object? sender, EventArgs e) => await CancelAsync();
-
-        private async void buttonErtele_Click(object? sender, EventArgs e) => await RescheduleSelectedAsync();
-
-        private async void buttonGecmisCsv_Click(object? sender, EventArgs e) => await ExportHistoryAsync();
-
-        private void buttonCikis_Click(object? sender, EventArgs e) => Close();
+        /// <summary>Doctor and branch on the first line, the day and time on the second.</summary>
+        private static ListRow Row(AppointmentDetails appointment) => new(
+            string.IsNullOrWhiteSpace(appointment.Branch) ? appointment.DoctorName : $"{appointment.DoctorName} · {appointment.Branch}",
+            appointment.StartsAt.ToString("d MMMM yyyy dddd, HH:mm", DisplayFormat.Turkish),
+            RowTone.Accent);
     }
 }

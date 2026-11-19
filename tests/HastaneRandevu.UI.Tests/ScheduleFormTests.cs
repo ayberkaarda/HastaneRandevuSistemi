@@ -2,6 +2,7 @@ using HastaneRandevu.Business.Services;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.UI.Infrastructure;
 using HastaneRandevu.UI.Tests.Support;
+using HastaneRandevu.UI.Theming;
 using static HastaneRandevu.UI.Tests.Support.StaThread;
 
 namespace HastaneRandevu.UI.Tests;
@@ -139,10 +140,58 @@ public sealed class ScheduleFormTests
     [Fact]
     public void Layout_KeepsEveryControlInsideTheWindow() => Run(() =>
     {
-        using var form = new CalismaProgramiForm(new ControlledScheduleService(), Sessions.Doctor);
-        _ = form.LoadAsync();
+        LayoutAssert.FitsInsideOnEveryScreen(() =>
+        {
+            var form = new CalismaProgramiForm(new ControlledScheduleService(), Sessions.Doctor);
+            _ = form.LoadAsync();
+            return form;
+        });
+    });
 
-        LayoutAssert.FitsInside(form);
+    private static readonly int[] ConflictHours = [10, 14];
+
+    [Fact]
+    public void ScheduleConflicts_LongPatientNameKeepsDateAndTimeVisible() => Run(() =>
+    {
+        var previous = Theme.Current;
+        var previousScale = Theme.RenderScale;
+        var previousArea = AppDialog.WorkingAreaOf;
+        Theme.Use(previous, 2F);
+        AppDialog.WorkingAreaOf = _ => new Rectangle(0, 0, 1024, 600);
+        try
+        {
+            var schedules = new ControlledScheduleService();
+            var name = new string('W', 80);
+            foreach (var hour in ConflictHours)
+            {
+                var appointment = Sessions.Appointment(hour) with { PatientName = name, StartsAt = new DateTime(2026, 3, 3, hour, hour == 14 ? 30 : 0, 0) };
+                schedules.Conflicts.Add(new ScheduleConflict(appointment, ScheduleConflictReason.LeaveDay));
+            }
+
+            using var form = new CalismaProgramiForm(schedules, Sessions.Doctor) { Prompts = new RecordingPrompts() };
+            _ = form.Handle;
+            Assert.True(form.LoadAsync().IsCompletedSuccessfully);
+
+            var list = Find<ThemedListBox>(form, "listBoxCakisanlar");
+            var rows = list.Items.Cast<object>().Select(item => list.Describe!(item).Primary).ToList();
+            Assert.Equal(2, rows.Count);
+
+            // What the row can paint: the list width minus the padding on both sides, as in the list's own drawing.
+            var available = list.ClientSize.Width - Theme.Px(list, (Spacing.M + 2) + Spacing.M);
+            string[] times = ["03 Mart 2026 Salı, 10:00", "03 Mart 2026 Salı, 14:30"];
+            foreach (var (row, time) in rows.Zip(times))
+            {
+                var stamp = row[..row.IndexOf(" · ", StringComparison.Ordinal)];
+                Assert.Equal(time.TrimStart('0'), stamp);
+                var width = TextRenderer.MeasureText(stamp, Theme.Fonts.BodyStrong, Size.Empty, TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix).Width;
+                Assert.True(width <= available, $"'{stamp}' needs {width}px, the row has {available}px.");
+            }
+        }
+        finally
+        {
+            AppDialog.WorkingAreaOf = previousArea;
+            Theme.Use(previous, previousScale);
+        }
     });
 
     private static string[] Items(ListBox list) => [.. list.Items.Cast<object>().Select(i => i.ToString()!)];

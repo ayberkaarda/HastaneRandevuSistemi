@@ -3,6 +3,7 @@ using HastaneRandevu.Business.Auditing;
 using HastaneRandevu.Data;
 using HastaneRandevu.Data.Persistence;
 using HastaneRandevu.UI.Infrastructure;
+using HastaneRandevu.UI.Theming;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
@@ -51,6 +52,8 @@ namespace HastaneRandevu.UI
             ApplicationConfiguration.Initialize();
 
             var configuration = BuildConfiguration();
+            ApplyTheme(AppConfiguration.ResolveTheme(configuration));
+
             var (policy, policyProblems) = AppConfiguration.ReadAppointmentPolicy(configuration);
             if (policyProblems.Count > 0)
             {
@@ -110,7 +113,27 @@ namespace HastaneRandevu.UI
             }
 
             var formFactory = serviceProvider.GetRequiredService<IFormFactory>();
+
+            // While the application runs, Windows may switch high contrast or the app mode; open screens follow.
+            using var themeWatcher = new ThemeWatcher(
+                new SystemPreferenceSource(),
+                new WindowsFormsSynchronizationContext(),
+                () => SystemInformation.HighContrast,
+                Theme.SystemPrefersDark);
             Application.Run(formFactory.Create<LoginForm>());
+        }
+
+        /// <summary>Chooses the palette; in dark mode the native parts of the controls are switched to dark too.</summary>
+        private static void ApplyTheme(ThemeMode mode)
+        {
+            var highContrast = SystemInformation.HighContrast;
+            Theme.Initialize(mode, highContrast, Theme.SystemPrefersDark());
+            if (Theme.Current.IsDark && !highContrast)
+            {
+#pragma warning disable WFO5001 // Dark mode of the native controls is marked experimental in Windows Forms.
+                Application.SetColorMode(SystemColorMode.Dark);
+#pragma warning restore WFO5001
+            }
         }
 
         private static IConfiguration BuildConfiguration() =>
@@ -145,6 +168,7 @@ namespace HastaneRandevu.UI
     {
         public const string SettingsFileName = "appsettings.json";
         public const string DemoSettingKey = "Seed:Demo";
+        public const string ThemeKey = "Appearance:Theme";
 
         /// <summary>Adds an optional JSON settings file located in <paramref name="basePath"/>.</summary>
         public static IConfigurationBuilder AddSettingsFile(this IConfigurationBuilder builder, string basePath, string fileName) =>
@@ -199,6 +223,18 @@ namespace HastaneRandevu.UI
                 value is "1" || string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
 
             return IsOn(configuration[DataServiceCollectionExtensions.DemoEnvironmentVariable]) || IsOn(configuration[DemoSettingKey]);
+        }
+
+        /// <summary>The <c>Appearance:Theme</c> setting (Light, Dark or System); anything else falls back to Light.</summary>
+        public static ThemeMode ResolveTheme(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            var value = configuration[ThemeKey]?.Trim();
+            // Only the names are accepted; Enum.TryParse would also take numbers.
+            return value is { Length: > 0 } && value.All(char.IsAsciiLetter) && Enum.TryParse<ThemeMode>(value, ignoreCase: true, out var mode)
+                ? mode
+                : ThemeMode.Light;
         }
     }
 }

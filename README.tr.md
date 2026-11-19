@@ -23,11 +23,11 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Randevu alma** ("Randevu Al"): branşıyla birlikte bir doktor ("Doktor Seçiniz"), bir gün ("Tarih Seçiniz")
   ve boş bir saat ("Saat Seçiniz") seçilir.
 - ✅ **Doktor arama** ("Doktor Ara"): doktorlar ada ve branşa göre süzülür (Türkçe harflerle veya harfsiz).
-- ✅ **İlk boş randevu** ("İlk Boş Randevu"): seçili doktorun 90 günlük aralıktaki en yakın boş dilimi servis
+- ✅ **İlk boş randevu** ("İlk boş saat"): seçili doktorun 90 günlük aralıktaki en yakın boş dilimi servis
   tarafından bulunur ve alınmaya hazır olarak seçicilerde gösterilir.
 - ✅ **Takvim** ("Takvim"): seçili doktorun ay veya hafta görünümü; boş (kaç dilim), dolu, izinli, çalışılmayan ve
   aralık dışı günler. Boş bir gün seçilince o günün saatleri gösterilir.
-- ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
+- ✅ **Randevularım** ("Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
   ("Randevu İptal").
 - ✅ **Erteleme** ("Ertele"): kendi randevusu aynı doktorun boş bir dilimine tek ve atomik bir adımda taşınır (iptal
   edilip yeniden alınmaz). Randevu başlamamış ve en az `Appointments:RescheduleCutoffHours` saat uzakta olmalıdır
@@ -71,6 +71,21 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 
 ---
 
+## 🖼️ Ekran görüntüleri
+
+Görseller `tools/Screenshots` ile, uydurma bir hastanenin verisiyle (uydurma isimler, yalnızca doğrulama algoritmasını
+geçen ve maskeli gösterilen T.C. kimlik numaraları) ekran dışında çizilir; hiçbir pencere açılmaz. 2x sürümü için
+görsele tıklayın. Yeniden çizmek için: `dotnet run --project tools/Screenshots -c Release -- screenshots`.
+
+| | |
+|---|---|
+| [![Hasta girişi](screenshots/hasta-girisi.png)](screenshots/hasta-girisi-2x.png)<br>**Hasta girişi** | [![Hasta kaydı](screenshots/hasta-kaydi.png)](screenshots/hasta-kaydi-2x.png)<br>**Hasta kaydı** |
+| [![Hasta paneli](screenshots/hasta-paneli.png)](screenshots/hasta-paneli-2x.png)<br>**Hasta paneli**: randevu alma, ilk boş saat, hatırlatma ve randevular | [![Takvim, ay görünümü](screenshots/randevu-takvimi.png)](screenshots/randevu-takvimi-2x.png)<br>**Takvim**, boş, dolu, izinli ve çalışılmayan günlerle ay görünümü |
+| [![Takvim, hafta görünümü](screenshots/randevu-takvimi-hafta.png)](screenshots/randevu-takvimi-hafta-2x.png)<br>**Takvim**, hafta görünümü | [![Randevu erteleme](screenshots/randevu-erteleme.png)](screenshots/randevu-erteleme-2x.png)<br>**Randevuyu ertele** |
+| [![Doktor girişi](screenshots/doktor-girisi.png)](screenshots/doktor-girisi-2x.png)<br>**Doktor girişi** | [![Doktor paneli](screenshots/doktor-paneli.png)](screenshots/doktor-paneli-2x.png)<br>**Doktor paneli**, ajanda dışa aktarıldıktan sonra |
+| [![Çalışma programı](screenshots/calisma-programi.png)](screenshots/calisma-programi-2x.png)<br>**Çalışma programım**, izin günleri ve programa uymayan randevularla | [![Onay penceresi](screenshots/onay-penceresi.png)](screenshots/onay-penceresi-2x.png)<br>İptalden önce **onay** penceresi |
+
+---
 ## 🔑 Yetki Matrisi
 
 | İşlem | Hasta | Doktor |
@@ -118,7 +133,7 @@ HastaneRandevuSistemi/
 │   ├── HastaneRandevu.Business.Tests/  # Doğrulayıcılar, kurallar, hash, kilit ve sahiplik (Moq)
 │   ├── HastaneRandevu.Data.Tests/      # SQLite üzerinde servisler ve repository'ler; SQL Server'da yarışlar ve eski veritabanı yükseltme
 │   └── HastaneRandevu.UI.Tests/        # Yapılandırma, hatalar, günlükler, ileti kutuları, odak ve yazma korumaları (pencere açılmaz)
-├── assets/                        # SVG kaynaklarıyla özgün logo, arka plan ve simge
+├── assets/                        # SVG kaynaklarıyla özgün logo ve simge
 ├── docs/THREAT_MODEL.md           # Tehdit modeli
 ├── .github/workflows/ci.yml       # Derleme, test ve sürüm iş akışı
 ├── CHANGELOG.md

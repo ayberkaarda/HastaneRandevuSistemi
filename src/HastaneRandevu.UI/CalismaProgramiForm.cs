@@ -2,14 +2,15 @@ using System.Globalization;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.UI.Infrastructure;
+using HastaneRandevu.UI.Theming;
 
 namespace HastaneRandevu.UI
 {
     /// <summary>
     /// Doctor's own schedule: weekly working hours, leave days and the appointments that no longer fit.
-    /// The layout is built in code; every write goes through an <see cref="ExclusiveOperation"/>.
+    /// Every write goes through an <see cref="ExclusiveOperation"/>.
     /// </summary>
-    public sealed class CalismaProgramiForm : Form
+    public sealed class CalismaProgramiForm : AppDialog
     {
         private static readonly DayOfWeek[] Week =
         [
@@ -23,26 +24,30 @@ namespace HastaneRandevu.UI
         private readonly ExclusiveOperation _leave = new();
         private readonly RequestSequence _loads = new();
         private readonly Dictionary<DayOfWeek, (CheckBox Works, ComboBox Start, ComboBox End)> _rows = [];
-        private readonly Label labelVarsayilan = new() { AutoSize = true, Name = "labelVarsayilan" };
-        private readonly Button buttonKaydet = new() { Name = "buttonKaydet", Text = "Programı Kaydet", AutoSize = true };
-        private readonly DateTimePicker dateTimePickerIzin = new() { Name = "dateTimePickerIzin", Width = 220 };
-        private readonly Button buttonIzinEkle = new() { Name = "buttonIzinEkle", Text = "İzin Ekle", AutoSize = true };
-        private readonly ListBox listBoxIzinler = new() { Name = "listBoxIzinler", Dock = DockStyle.Fill, IntegralHeight = false };
-        private readonly Button buttonIzinKaldir = new() { Name = "buttonIzinKaldir", Text = "Seçili İzni Kaldır", AutoSize = true };
-        private readonly ListBox listBoxCakisanlar = new() { Name = "listBoxCakisanlar", Dock = DockStyle.Fill, IntegralHeight = false, HorizontalScrollbar = true };
-        private readonly Button buttonKapat = new() { Name = "buttonKapat", Text = "Kapat", AutoSize = true };
+        private readonly Label labelVarsayilan = new() { AutoSize = true, Name = "labelVarsayilan", UseMnemonic = false };
+        private readonly ThemedButton buttonKaydet = FormLayout.Button("buttonKaydet", "Programı kaydet", ButtonKind.Primary);
+        private readonly DateTimePicker dateTimePickerIzin = FormLayout.DatePicker("dateTimePickerIzin");
+        private readonly ThemedButton buttonIzinEkle = FormLayout.Button("buttonIzinEkle", "İzin ekle", ButtonKind.Secondary, Glyphs.Leave);
+        private readonly ThemedListBox listBoxIzinler = new() { Name = "listBoxIzinler", Dock = DockStyle.Fill, AccessibleName = "İzin günleri" };
+        private readonly ThemedButton buttonIzinKaldir = FormLayout.Button("buttonIzinKaldir", "Seçili izni kaldır");
+        private readonly ThemedListBox listBoxCakisanlar = new() { Name = "listBoxCakisanlar", Dock = DockStyle.Fill, AccessibleName = "Programa uymayan randevular" };
 
         public CalismaProgramiForm(IScheduleService schedules, UserSession session)
+            : base(
+                "Çalışma programım",
+                "Haftalık çalışma saatleriniz ve izin günleriniz; yeni randevular bu programa göre verilir.",
+                Glyphs.Schedule,
+                new Size(940, 800),
+                new Size(800, 600),
+                modal: true)
         {
             ArgumentNullException.ThrowIfNull(schedules);
             ArgumentNullException.ThrowIfNull(session);
 
             _schedules = schedules;
             _session = session;
-            Prompts = new MessageBoxPrompts(this);
 
             BuildLayout();
-            Icon = AppAssets.Icon;
             var today = DateTime.Today;
             dateTimePickerIzin.MinDate = today;
             dateTimePickerIzin.MaxDate = today.AddDays(365);
@@ -51,12 +56,7 @@ namespace HastaneRandevu.UI
             buttonKaydet.Click += async (_, _) => await SaveAsync();
             buttonIzinEkle.Click += async (_, _) => await AddLeaveAsync();
             buttonIzinKaldir.Click += async (_, _) => await RemoveLeaveAsync();
-            buttonKapat.Click += (_, _) => Close();
         }
-
-        /// <summary>Confirmation and information dialogs; replaced in tests so no window opens.</summary>
-        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        internal IUserPrompts Prompts { get; set; }
 
         /// <summary>Loads the schedule and the conflicts; only the latest of overlapping loads is shown.</summary>
         internal Task LoadAsync() =>
@@ -169,90 +169,111 @@ namespace HastaneRandevu.UI
 
         private void BuildLayout()
         {
-            SuspendLayout();
-            AutoScaleMode = AutoScaleMode.Font;
-            Font = new Font("Segoe UI", 9F);
-            Text = "Hastane Randevu - Çalışma Programım";
-            StartPosition = FormStartPosition.CenterParent;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ClientSize = new Size(820, 640);
+            Name = nameof(CalismaProgramiForm);
 
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3, Padding = new Padding(12) };
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 340));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            var weekCard = FormLayout.Card("weekCard", "Haftalık çalışma saatleri", BuildWeek(), fill: false);
+            weekCard.Dock = DockStyle.Fill;
+            weekCard.Margin = new Padding(0, 0, Spacing.S, Spacing.L);
+            var leaveCard = FormLayout.Card("leaveCard", "İzin ve tatil günleri", BuildLeave());
+            leaveCard.Margin = new Padding(Spacing.S, 0, 0, Spacing.L);
 
-            root.Controls.Add(BuildWeekGroup(), 0, 0);
-            root.Controls.Add(BuildLeaveGroup(), 1, 0);
-            var conflicts = new GroupBox { Text = "Programa uymayan randevular", Dock = DockStyle.Fill, Padding = new Padding(8) };
-            conflicts.Controls.Add(listBoxCakisanlar);
-            root.Controls.Add(conflicts, 0, 1);
-            root.SetColumnSpan(conflicts, 2);
-            var bottom = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
-            bottom.Controls.Add(buttonKapat);
-            root.Controls.Add(bottom, 0, 2);
-            root.SetColumnSpan(bottom, 2);
+            var top = new TableLayoutPanel
+            {
+                Name = "topRow",
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 2,
+                RowCount = 1,
+                Margin = Padding.Empty,
+            };
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
+            top.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            top.Controls.Add(weekCard, 0, 0);
+            top.Controls.Add(leaveCard, 1, 0);
 
-            Controls.Add(root);
-            ResumeLayout(true);
+            listBoxCakisanlar.Describe = item => item is ConflictItem conflict ? ConflictRow(conflict.Conflict) : new ListRow(item.ToString() ?? string.Empty);
+            listBoxCakisanlar.EmptyText = "Programınıza uymayan randevu yok.";
+            var conflictHint = FormLayout.Hint("Bu randevular değiştirilmedi; gerekirse hastayla görüşüp doktor panelinden iptal edin.");
+            conflictHint.Name = "conflictHint";
+            conflictHint.Margin = new Padding(0, Spacing.S, 0, 0);
+            var conflictsCard = FormLayout.Card("conflictsCard", "Programa uymayan randevular", FormLayout.Page("conflictsPage", (listBoxCakisanlar, true), (conflictHint, false)));
+            conflictsCard.Margin = Padding.Empty;
+
+            Content.Controls.Add(FormLayout.Page("page", (top, false), (conflictsCard, true)));
+            SetFooterNote("Kaydettiğiniz program yeni randevulara uygulanır; mevcut randevular değişmez.");
+            SetFooterButtons(CreateCloseButton("buttonKapat"));
+            FinishLayout();
         }
 
-        private GroupBox BuildWeekGroup()
+        private TableLayoutPanel BuildWeek()
         {
-            var group = new GroupBox { Text = "Haftalık çalışma saatleri", Dock = DockStyle.Fill, Padding = new Padding(8) };
-            var table = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, AutoSize = true };
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-
             var turkish = CultureInfo.GetCultureInfo("tr-TR");
+            var intro = FormLayout.Hint("Çalıştığınız günleri işaretleyin, başlangıç ve bitiş saatlerini seçin.");
+            intro.Name = "weekIntro";
+            intro.Margin = new Padding(0, 0, 0, Spacing.S);
+            var rows = new List<Control> { intro };
             foreach (var day in Week)
             {
-                var works = new CheckBox { Name = "checkBox" + day, Text = turkish.DateTimeFormat.GetDayName(day), AutoSize = true, Anchor = AnchorStyles.Left };
+                var works = new ThemedCheckBox
+                {
+                    Name = "checkBox" + day,
+                    Text = turkish.DateTimeFormat.GetDayName(day),
+                    Margin = new Padding(0, 0, Spacing.M, 0),
+                };
                 var start = TimePicker("comboBoxBaslangic" + day, 0, 47);
                 var end = TimePicker("comboBoxBitis" + day, 1, 48);
+                start.AccessibleName = works.Text + " başlangıç saati";
+                end.AccessibleName = works.Text + " bitiş saati";
                 works.CheckedChanged += (_, _) => start.Enabled = end.Enabled = works.Checked;
                 start.Enabled = end.Enabled = false;
                 _rows[day] = (works, start, end);
-                table.Controls.Add(works);
-                table.Controls.Add(start);
-                table.Controls.Add(end);
+                var dash = new Label { Text = "–", AutoSize = true, ForeColor = Theme.Current.TextMuted, Margin = new Padding(Spacing.XS, 0, Spacing.XS, 0) };
+
+                // One bar per day: the hours keep the same width, so they line up from day to day.
+                var row = FormLayout.Bar("weekRow" + day, (works, true), (start, false), (dash, false), (end, false));
+                works.Anchor = AnchorStyles.Left;
+                row.Margin = Padding.Empty;
+                rows.Add(row);
             }
 
-            var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown };
-            actions.Controls.Add(labelVarsayilan);
-            actions.Controls.Add(buttonKaydet);
-            table.Controls.Add(actions);
-            table.SetColumnSpan(actions, 3);
-            group.Controls.Add(table);
-            return group;
+            labelVarsayilan.Font = Theme.Fonts.Body;
+            labelVarsayilan.ForeColor = Theme.Current.AccentText;
+            labelVarsayilan.Margin = new Padding(0, Spacing.S, 0, 0);
+            rows.Add(labelVarsayilan);
+            buttonKaydet.Margin = new Padding(0, Spacing.M, 0, 0);
+            rows.Add(buttonKaydet);
+            var stack = FormLayout.Stack("weekTable", [.. rows]);
+            buttonKaydet.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+            return stack;
         }
 
-        private GroupBox BuildLeaveGroup()
+        private TableLayoutPanel BuildLeave()
         {
-            var group = new GroupBox { Text = "İzin ve tatil günleri", Dock = DockStyle.Fill, Padding = new Padding(8) };
-            var table = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3 };
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            table.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            table.Controls.Add(dateTimePickerIzin, 0, 0);
-            table.Controls.Add(buttonIzinEkle, 1, 0);
-            table.Controls.Add(listBoxIzinler, 0, 1);
-            table.SetColumnSpan(listBoxIzinler, 2);
-            table.Controls.Add(buttonIzinKaldir, 0, 2);
-            group.Controls.Add(table);
-            return group;
+            listBoxIzinler.Describe = item => item is LeaveDayItem leave
+                ? new ListRow(leave.Day.ToString("d MMMM yyyy", DisplayFormat.Turkish), leave.Day.ToString("dddd", DisplayFormat.Turkish))
+                : new ListRow(item.ToString() ?? string.Empty);
+            listBoxIzinler.EmptyText = "Kayıtlı izin gününüz yok.";
+            dateTimePickerIzin.AccessibleName = "İzin günü";
+            dateTimePickerIzin.Margin = new Padding(0, 5, Spacing.S, 5);
+            buttonIzinEkle.Margin = Padding.Empty;
+            var add = FormLayout.Bar("leaveAddBar", (dateTimePickerIzin, true), (buttonIzinEkle, false));
+            add.Margin = new Padding(0, 0, 0, Spacing.M);
+            buttonIzinKaldir.Margin = new Padding(0, Spacing.M, 0, 0);
+            var remove = FormLayout.Bar("leaveRemoveBar", (buttonIzinKaldir, false), (FormLayout.Spacer(), true));
+            return FormLayout.Page("leavePage", (add, false), (listBoxIzinler, true), (remove, false));
         }
 
-        private static ComboBox TimePicker(string name, int first, int last)
+        /// <summary>The time and patient on the first line, the reason on the second; a long name is cut, never the time.</summary>
+        private static ListRow ConflictRow(ScheduleConflict conflict) => new(
+            $"{conflict.Appointment.StartsAt.ToString("d MMMM yyyy dddd, HH:mm", DisplayFormat.Turkish)} · {conflict.Appointment.PatientName}",
+            conflict.Reason == ScheduleConflictReason.LeaveDay ? "İzin gününe denk geliyor" : "Çalışma saatlerinin dışında kalıyor",
+            RowTone.Warning);
+
+        private static ThemedComboBox TimePicker(string name, int first, int last)
         {
-            var combo = new ComboBox { Name = name, DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
+            var combo = FormLayout.Picker(name, 96);
+            combo.Margin = new Padding(0, 1, 0, 1);
             for (var i = first; i <= last; i++)
             {
                 combo.Items.Add(new TimeItem(TimeSpan.FromMinutes(30 * i)));
