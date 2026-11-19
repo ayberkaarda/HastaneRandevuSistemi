@@ -95,6 +95,63 @@ internal sealed class ControlledAppointmentService : IAppointmentService
     }
 }
 
+/// <summary>Schedule service whose reads answer at once and whose writes stay pending until completed.</summary>
+internal sealed class ControlledScheduleService : IScheduleService
+{
+    private TaskCompletionSource<IReadOnlyList<ScheduleConflict>> _write = new();
+
+    public DoctorScheduleView View { get; set; } = new(
+        [new WorkingDay(DayOfWeek.Monday, TimeSpan.FromHours(9), TimeSpan.FromHours(17))],
+        UsesDefaultHours: false,
+        [new DateOnly(2026, 3, 3)]);
+
+    public List<ScheduleConflict> Conflicts { get; } = [];
+
+    public List<IReadOnlyList<WorkingDay>> Saved { get; } = [];
+
+    public List<DateOnly> AddedLeave { get; } = [];
+
+    public List<DateOnly> RemovedLeave { get; } = [];
+
+    public int Reads { get; private set; }
+
+    public Task<DoctorScheduleView> GetMyScheduleAsync(UserSession session, CancellationToken cancellationToken = default)
+    {
+        Reads++;
+        return Task.FromResult(View);
+    }
+
+    public Task<IReadOnlyList<ScheduleConflict>> SaveWorkingDaysAsync(UserSession session, IReadOnlyList<WorkingDay> days, CancellationToken cancellationToken = default)
+    {
+        Saved.Add(days);
+        return Pending();
+    }
+
+    public Task<IReadOnlyList<ScheduleConflict>> AddLeaveDayAsync(UserSession session, DateOnly day, CancellationToken cancellationToken = default)
+    {
+        AddedLeave.Add(day);
+        return Pending();
+    }
+
+    public Task RemoveLeaveDayAsync(UserSession session, DateOnly day, CancellationToken cancellationToken = default)
+    {
+        RemovedLeave.Add(day);
+        return Pending();
+    }
+
+    public Task<IReadOnlyList<ScheduleConflict>> GetConflictsAsync(UserSession session, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ScheduleConflict>>([.. Conflicts]);
+
+    /// <summary>Completes the pending write with the current <see cref="Conflicts"/>.</summary>
+    public void CompleteWrite() => _write.SetResult([.. Conflicts]);
+
+    private Task<IReadOnlyList<ScheduleConflict>> Pending()
+    {
+        _write = new TaskCompletionSource<IReadOnlyList<ScheduleConflict>>();
+        return _write.Task;
+    }
+}
+
 /// <summary>Answers confirmations with yes and records every message instead of showing a dialog.</summary>
 internal sealed class RecordingPrompts : IUserPrompts
 {

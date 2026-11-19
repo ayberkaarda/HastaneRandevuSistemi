@@ -1,4 +1,4 @@
-﻿namespace HastaneRandevu.UI
+namespace HastaneRandevu.UI
 {
     partial class DoktorForm
     {
@@ -8,6 +8,7 @@
         private System.Windows.Forms.Button buttonCikis;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button buttonRandevuIptal;
+        private System.Windows.Forms.Button buttonCalismaProgrami;
 
         protected override void Dispose(bool disposing)
         {
@@ -25,6 +26,7 @@
             this.buttonCikis = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.buttonRandevuIptal = new System.Windows.Forms.Button();
+            this.buttonCalismaProgrami = new System.Windows.Forms.Button();
             this.SuspendLayout();
             //
             // labelDoktor
@@ -48,10 +50,10 @@
             //
             // buttonCikis
             //
-            this.buttonCikis.Location = new System.Drawing.Point(23, 300);
+            this.buttonCikis.Location = new System.Drawing.Point(23, 340);
             this.buttonCikis.Name = "buttonCikis";
             this.buttonCikis.Size = new System.Drawing.Size(100, 30);
-            this.buttonCikis.TabIndex = 3;
+            this.buttonCikis.TabIndex = 6;
             this.buttonCikis.Text = "Çıkış";
             this.buttonCikis.UseVisualStyleBackColor = true;
             this.buttonCikis.Click += new System.EventHandler(this.buttonCikis_Click);
@@ -68,19 +70,30 @@
             //
             // buttonRandevuIptal
             //
-            this.buttonRandevuIptal.Location = new System.Drawing.Point(246, 300);
+            this.buttonRandevuIptal.Location = new System.Drawing.Point(23, 290);
             this.buttonRandevuIptal.Name = "buttonRandevuIptal";
-            this.buttonRandevuIptal.Size = new System.Drawing.Size(117, 30);
-            this.buttonRandevuIptal.TabIndex = 5;
+            this.buttonRandevuIptal.Size = new System.Drawing.Size(170, 30);
+            this.buttonRandevuIptal.TabIndex = 3;
             this.buttonRandevuIptal.Text = "Randevu İptal";
             this.buttonRandevuIptal.UseVisualStyleBackColor = true;
             this.buttonRandevuIptal.Click += new System.EventHandler(this.buttonRandevuIptal_Click);
+            //
+            // buttonCalismaProgrami
+            //
+            this.buttonCalismaProgrami.Location = new System.Drawing.Point(214, 290);
+            this.buttonCalismaProgrami.Name = "buttonCalismaProgrami";
+            this.buttonCalismaProgrami.Size = new System.Drawing.Size(170, 30);
+            this.buttonCalismaProgrami.TabIndex = 4;
+            this.buttonCalismaProgrami.Text = "Çalışma Programım";
+            this.buttonCalismaProgrami.UseVisualStyleBackColor = true;
+            this.buttonCalismaProgrami.Click += new System.EventHandler(this.buttonCalismaProgrami_Click);
             //
             // DoktorForm
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(400, 350);
+            this.ClientSize = new System.Drawing.Size(400, 390);
+            this.Controls.Add(this.buttonCalismaProgrami);
             this.Controls.Add(this.buttonRandevuIptal);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.buttonCikis);

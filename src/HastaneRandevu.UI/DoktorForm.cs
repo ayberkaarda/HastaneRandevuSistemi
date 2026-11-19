@@ -3,20 +3,23 @@ using HastaneRandevu.UI.Infrastructure;
 
 namespace HastaneRandevu.UI
 {
-    /// <summary>Doctor panel: the appointments made with the signed-in doctor.</summary>
+    /// <summary>Doctor panel: the appointments made with the signed-in doctor and the way to the own schedule.</summary>
     public partial class DoktorForm : Form
     {
         private readonly IAppointmentService _appointments;
+        private readonly IFormFactory _forms;
         private readonly UserSession _session;
         private readonly ExclusiveOperation _cancel = new();
         private readonly RequestSequence _listRequests = new();
 
-        public DoktorForm(IAppointmentService appointments, UserSession session)
+        public DoktorForm(IAppointmentService appointments, IFormFactory forms, UserSession session)
         {
             ArgumentNullException.ThrowIfNull(appointments);
+            ArgumentNullException.ThrowIfNull(forms);
             ArgumentNullException.ThrowIfNull(session);
 
             _appointments = appointments;
+            _forms = forms;
             _session = session;
             Prompts = new MessageBoxPrompts(this);
 
@@ -68,6 +71,17 @@ namespace HastaneRandevu.UI
         private async void DoktorForm_Load(object? sender, EventArgs e) => await LoadAsync();
 
         private async void buttonRandevuIptal_Click(object? sender, EventArgs e) => await CancelAsync();
+
+        private async void buttonCalismaProgrami_Click(object? sender, EventArgs e)
+        {
+            using (var schedule = _forms.Create<CalismaProgramiForm>(_session))
+            {
+                schedule.ShowDialog(this);
+            }
+
+            // Leave days and hours do not change the list, but another window may have cancelled meanwhile.
+            await LoadAsync();
+        }
 
         private void buttonCikis_Click(object? sender, EventArgs e) => Close();
     }
