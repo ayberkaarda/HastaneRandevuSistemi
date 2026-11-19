@@ -178,8 +178,6 @@ public sealed class SearchAndCalendarTests
     [Fact]
     public void Calendar_Layout_FitsTheWindow() => Run(() =>
     {
-        using var form = new TakvimForm(new ControlledAvailabilityService(), Sessions.Patient, Ada);
-
-        LayoutAssert.FitsInside(form);
+        LayoutAssert.FitsInsideOnEveryScreen(() => new TakvimForm(new ControlledAvailabilityService(), Sessions.Patient, Ada));
     });
 }

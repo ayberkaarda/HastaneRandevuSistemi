@@ -139,10 +139,12 @@ public sealed class ScheduleFormTests
     [Fact]
     public void Layout_KeepsEveryControlInsideTheWindow() => Run(() =>
     {
-        using var form = new CalismaProgramiForm(new ControlledScheduleService(), Sessions.Doctor);
-        _ = form.LoadAsync();
-
-        LayoutAssert.FitsInside(form);
+        LayoutAssert.FitsInsideOnEveryScreen(() =>
+        {
+            var form = new CalismaProgramiForm(new ControlledScheduleService(), Sessions.Doctor);
+            _ = form.LoadAsync();
+            return form;
+        });
     });
 
     private static string[] Items(ListBox list) => [.. list.Items.Cast<object>().Select(i => i.ToString()!)];
