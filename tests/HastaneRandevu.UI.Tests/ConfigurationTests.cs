@@ -42,6 +42,72 @@ public sealed class ConfigurationTests
         Assert.Equal("Server=from-environment;", AppConfiguration.ResolveConnectionString(configuration));
     }
 
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData("0", null, false)]
+    [InlineData("yes", null, false)]
+    [InlineData(null, "false", false)]
+    [InlineData("1", null, true)]
+    [InlineData("TRUE", null, true)]
+    [InlineData(null, "true", true)]
+    public void DemoMode_IsOffUnlessSwitchedOnExplicitly(string? environment, string? setting, bool expected)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [DataServiceCollectionExtensions.DemoEnvironmentVariable] = environment,
+                [AppConfiguration.DemoSettingKey] = setting,
+            })
+            .Build();
+
+        Assert.Equal(expected, AppConfiguration.ResolveDemoMode(configuration));
+    }
+
+    [Fact]
+    public void ExampleConfiguration_LeavesDemoModeOff()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddSettingsFile(AppContext.BaseDirectory, ExampleFileName)
+            .Build();
+
+        Assert.Equal("HASTANE_DEMO", DataServiceCollectionExtensions.DemoEnvironmentVariable);
+        Assert.False(AppConfiguration.ResolveDemoMode(configuration));
+    }
+
+    [Fact]
+    public void ExampleConfiguration_HasAValidAppointmentPolicy()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddSettingsFile(AppContext.BaseDirectory, ExampleFileName)
+            .Build();
+
+        var (policy, problems) = AppConfiguration.ReadAppointmentPolicy(configuration);
+
+        Assert.Empty(problems);
+        Assert.Equal(2, policy.RescheduleCutoffHours);
+        Assert.Equal(24, policy.ReminderLeadHours);
+        Assert.True(policy.ShowReminderBalloon);
+    }
+
+    [Theory]
+    [InlineData(null, 2, null)]
+    [InlineData("0", 0, null)]
+    [InlineData("168", 168, null)]
+    [InlineData("169", 169, "RescheduleCutoffHours 0 ile 168 arasında olmalıdır.")]
+    [InlineData("-1", -1, "RescheduleCutoffHours 0 ile 168 arasında olmalıdır.")]
+    [InlineData("iki", 2, "Ayar değerlerinden biri okunamadı.")]
+    public void AppointmentPolicy_IsValidatedFromTheSettings(string? value, int expected, string? problem)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(value is null ? [] : new Dictionary<string, string?> { ["Appointments:RescheduleCutoffHours"] = value })
+            .Build();
+
+        var (policy, problems) = AppConfiguration.ReadAppointmentPolicy(configuration);
+
+        Assert.Equal(expected, policy.RescheduleCutoffHours);
+        Assert.Equal(problem is null ? [] : [problem], problems);
+    }
+
     [Fact]
     public void SettingsFile_IsUsedWithoutEnvironmentVariable()
     {

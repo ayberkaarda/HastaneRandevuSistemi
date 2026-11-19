@@ -1,5 +1,6 @@
 using FluentValidation;
 using HastaneRandevu.Business.Auditing;
+using HastaneRandevu.Business.Scheduling;
 using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
@@ -15,7 +16,7 @@ public interface IAppointmentService
 {
     Task<IReadOnlyList<DoctorSummary>> GetDoctorsAsync(UserSession session, CancellationToken cancellationToken = default);
 
-    /// <summary>Free future slots of the doctor on <paramref name="day"/>.</summary>
+    /// <summary>Free future slots of the doctor on <paramref name="day"/>, from the doctor's schedule.</summary>
     Task<IReadOnlyList<DateTime>> GetAvailableSlotsAsync(
         UserSession session,
         int doctorId,
@@ -30,18 +31,31 @@ public interface IAppointmentService
 
     /// <summary>Cancels an appointment of the signed-in patient or doctor.</summary>
     Task CancelAsync(UserSession session, int appointmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves an appointment of the signed-in patient to a free slot of the same doctor in one atomic
+    /// step: no cancellation and no new appointment. The appointment must not have started and must be
+    /// at least <see cref="AppointmentPolicy.RescheduleCutoffHours"/> away; the new time follows the
+    /// booking rules.
+    /// </summary>
+    Task RescheduleAsync(UserSession session, int appointmentId, DateTime newStartsAt, CancellationToken cancellationToken = default);
 }
 
 internal sealed class AppointmentService(
     IAppointmentRepository appointments,
     IDoctorRepository doctors,
+    IDoctorScheduleRepository schedules,
     TimeProvider timeProvider,
     IValidator<BookingInput> bookingValidator,
     IValidator<CancellationInput> cancellationValidator,
+    IValidator<RescheduleInput> rescheduleValidator,
+    AppointmentPolicy policy,
     IAuditLog audit) : IAppointmentService
 {
     internal const string SlotTaken = "Bu randevu saatinde doktor zaten dolu. Lütfen başka bir zaman seçin.";
     internal const string CancelFailed = "Randevu iptal edilemedi.";
+    internal const string RescheduleFailed =
+        "Randevu ertelenemedi; randevu bu arada değişmiş olabilir. Lütfen randevu listesini yenileyip tekrar deneyin.";
 
     public Task<IReadOnlyList<DoctorSummary>> GetDoctorsAsync(UserSession session, CancellationToken cancellationToken = default)
     {
@@ -58,9 +72,16 @@ internal sealed class AppointmentService(
         RequirePatient(session);
 
         day = day.Date;
-        var slots = AppointmentRules.SlotsOf(day);
         var now = LocalNow();
-        if (slots.Count == 0 || day > now.Date.AddDays(AppointmentRules.MaxDaysAhead))
+        if (day > now.Date.AddDays(AppointmentRules.MaxDaysAhead))
+        {
+            return [];
+        }
+
+        var date = DateOnly.FromDateTime(day);
+        var schedule = await schedules.LoadScheduleAsync(doctorId, date, date, cancellationToken).ConfigureAwait(false);
+        var slots = schedule.SlotsOf(day);
+        if (slots.Count == 0)
         {
             return [];
         }
@@ -92,7 +113,9 @@ internal sealed class AppointmentService(
         CancellationToken cancellationToken = default)
     {
         RequirePatient(session);
-        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, LocalNow()));
+        var now = LocalNow();
+        var schedule = await LoadScheduleForAsync(doctorId, startsAt, cancellationToken).ConfigureAwait(false);
+        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, now, schedule));
 
         if (!await doctors.ExistsAsync(doctorId, cancellationToken).ConfigureAwait(false))
         {
@@ -110,7 +133,13 @@ internal sealed class AppointmentService(
         int id;
         try
         {
-            id = await appointments.AddAsync(appointment, cancellationToken).ConfigureAwait(false);
+            // The schedule read above may change before the write; the repository repeats the check on
+            // the schedule as committed, under the doctor's lock that schedule changes take too.
+            id = await appointments.AddAsync(
+                appointment,
+                (workingDays, leaveDays) => bookingValidator.ValidateOrThrow(
+                    new BookingInput(doctorId, startsAt, now, new DoctorSchedule(workingDays, leaveDays))),
+                cancellationToken).ConfigureAwait(false);
         }
         catch (SlotAlreadyBookedException ex)
         {
@@ -155,6 +184,69 @@ internal sealed class AppointmentService(
         audit.Record(AuditEvent.AppointmentCancelled, session.Role);
     }
 
+    public async Task RescheduleAsync(
+        UserSession session,
+        int appointmentId,
+        DateTime newStartsAt,
+        CancellationToken cancellationToken = default)
+    {
+        RequirePatient(session);
+
+        var appointment = await appointments.GetByIdAsync(appointmentId, cancellationToken).ConfigureAwait(false);
+
+        // A missing appointment and somebody else's appointment get the same answer, so ids cannot be probed.
+        if (appointment is null || !IsOwnedBy(appointment, session))
+        {
+            audit.Record(AuditEvent.AccessDenied, session.Role);
+            throw new AccessDeniedException();
+        }
+
+        var now = LocalNow();
+        var schedule = await LoadScheduleForAsync(appointment.DoctorId, newStartsAt, cancellationToken).ConfigureAwait(false);
+        rescheduleValidator.ValidateOrThrow(new RescheduleInput(
+            appointment.Status,
+            appointment.StartsAt,
+            newStartsAt,
+            now,
+            policy.RescheduleCutoff,
+            schedule));
+
+        bool moved;
+        try
+        {
+            // The repository repeats ownership, status, the time read above and both time limits in the
+            // moving statement, so a concurrent move of the same appointment is not overwritten, and
+            // checks the new time again on the doctor's schedule as committed, under the doctor's lock.
+            moved = await appointments.RescheduleAsync(
+                appointmentId,
+                session.AccountId,
+                appointment.StartsAt,
+                newStartsAt,
+                now,
+                now + policy.RescheduleCutoff,
+                (workingDays, leaveDays) => rescheduleValidator.ValidateOrThrow(new RescheduleInput(
+                    appointment.Status,
+                    appointment.StartsAt,
+                    newStartsAt,
+                    now,
+                    policy.RescheduleCutoff,
+                    new DoctorSchedule(workingDays, leaveDays))),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (SlotAlreadyBookedException ex)
+        {
+            audit.Record(AuditEvent.AppointmentSlotTaken, session.Role);
+            throw new BusinessRuleException(SlotTaken, ex);
+        }
+
+        if (!moved)
+        {
+            throw new BusinessRuleException(RescheduleFailed);
+        }
+
+        audit.Record(AuditEvent.AppointmentRescheduled, session.Role);
+    }
+
     private static bool IsOwnedBy(Appointment appointment, UserSession session) => session.Role switch
     {
         AccountRole.Patient => appointment.PatientId == session.AccountId,
@@ -162,14 +254,18 @@ internal sealed class AppointmentService(
         _ => false,
     };
 
-    private void RequirePatient(UserSession session)
+    private void RequirePatient(UserSession session) => Access.RequireRole(session, AccountRole.Patient, audit);
+
+    /// <summary>The doctor's schedule for the day of <paramref name="start"/>; the default one for no doctor.</summary>
+    private Task<DoctorSchedule> LoadScheduleForAsync(int doctorId, DateTime start, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(session);
-        if (session.Role != AccountRole.Patient)
+        if (doctorId <= 0)
         {
-            audit.Record(AuditEvent.AccessDenied, session.Role);
-            throw new AccessDeniedException();
+            return Task.FromResult(DoctorSchedule.Default);
         }
+
+        var day = DateOnly.FromDateTime(start);
+        return schedules.LoadScheduleAsync(doctorId, day, day, cancellationToken);
     }
 
     private DateTime LocalNow() => timeProvider.GetLocalNow().DateTime;

@@ -61,7 +61,7 @@ public sealed class LegacyUpgradeTests
         await database.ExecuteAsync(LegacySchema, ct);
         await database.ExecuteAsync(LegacyData, ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         var initializer = provider.GetRequiredService<IDatabaseInitializer>();
         await initializer.InitializeAsync(ct);
         await initializer.InitializeAsync(ct); // Second start must be a no-op.
@@ -92,6 +92,13 @@ public sealed class LegacyUpgradeTests
         Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 3 AND Sifre LIKE N'PBKDF2-SHA256$%' AND SifreBicimi = 0", ct));
         Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar WHERE HastaID = 6 AND Sifre = N'1234' AND SifreBicimi = 1", ct));
         await auth.SignInPatientAsync("20000000001", "sifre1", ct);
+
+        // The schedule migration ran after the adoption; existing doctors keep the default hours.
+        Assert.Equal(1, await database.ScalarAsync(
+            "SELECT COUNT(*) FROM dbo.__EFMigrationsHistory WHERE MigrationId LIKE N'%_AddDoctorSchedules'",
+            ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.DoktorCalismaSaatleri", ct));
+        Assert.True((await provider.GetRequiredService<IScheduleService>().GetMyScheduleAsync(doctor, ct)).UsesDefaultHours);
 
         // Existing appointments are listed for their owners, past ones included.
         var appointments = provider.GetRequiredService<IAppointmentService>();
@@ -143,7 +150,7 @@ public sealed class LegacyUpgradeTests
             ct,
             ("@password", password));
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
         var auth = provider.GetRequiredService<IAuthService>();
 
@@ -183,7 +190,7 @@ public sealed class LegacyUpgradeTests
             ("@patient", PatientPassword),
             ("@doctor", DoctorPassword));
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
         var auth = provider.GetRequiredService<IAuthService>();
 
@@ -237,7 +244,7 @@ public sealed class LegacyUpgradeTests
             """,
             ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         var error = await Assert.ThrowsAsync<DatabaseInitializationException>(
             () => provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct));
 
@@ -254,13 +261,35 @@ public sealed class LegacyUpgradeTests
     }
 
     [Fact]
-    public async Task Initialize_EmptyDatabase_AppliesMigrationWithFictionalSampleData()
+    public async Task Initialize_DefaultConfiguration_DoesNotCreateDemoCredentials()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync(ct);
+        await initializer.InitializeAsync(ct);
+
+        // The migrations create the schema only: no account, so no published password works.
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular", ct));
+        var auth = provider.GetRequiredService<IAuthService>();
+        await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInDoctorAsync("Dr. Ada Örnek", "Demo.Doktor1", ct));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInPatientAsync("10000000450", "Demo.Hasta1", ct));
+        await AssertUpgradedSchemaAsync(database, ct);
+    }
+
+    [Fact]
+    public async Task Initialize_EmptyDatabaseInDemoMode_CreatesTheFictionalDemoAccountsOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+
+        await using var provider = database.BuildServices(demo: true);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct); // no duplicates
 
         var session = await provider.GetRequiredService<IAuthService>().SignInDoctorAsync("Dr. Ece Taslak", "Demo.Doktor1", ct);
         Assert.Equal(3, session.AccountId);
@@ -271,6 +300,71 @@ public sealed class LegacyUpgradeTests
             "SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE SifreBicimi = 0) + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE SifreBicimi = 0)",
             ct));
         await AssertUpgradedSchemaAsync(database, ct);
+    }
+
+    /// <summary>Several application instances start in demo mode on the same empty database at once.</summary>
+    [Fact]
+    public async Task Initialize_ConcurrentDemoStartsOnAnEmptyDatabase_SeedOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+        await using (var schema = database.BuildServices(demo: false))
+        {
+            await schema.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        }
+
+        var instances = Enumerable.Range(0, 6).Select(_ => database.BuildServices(demo: true)).ToList();
+        try
+        {
+            using var start = new ManualResetEventSlim(false);
+            var starts = instances
+                .Select(i => Task.Run(
+                    async () =>
+                    {
+                        start.Wait(ct);
+                        return await i.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+                    },
+                    ct))
+                .ToList();
+            start.Set();
+            var outcomes = await Task.WhenAll(starts);
+
+            Assert.Equal(1, outcomes.Count(o => o == DemoSeedOutcome.Seeded));
+            Assert.All(outcomes.Where(o => o != DemoSeedOutcome.Seeded), o => Assert.Equal(DemoSeedOutcome.SkippedExistingData, o));
+            Assert.Equal(3, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
+            Assert.Equal(2, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
+        }
+        finally
+        {
+            foreach (var instance in instances)
+            {
+                await instance.DisposeAsync();
+            }
+        }
+    }
+
+    /// <summary>A database with an account of its own gets no demo account, also on SQL Server.</summary>
+    [Fact]
+    public async Task Initialize_DemoEnabled_NonEmptyDatabaseAddsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+        await using (var schema = database.BuildServices(demo: false))
+        {
+            await schema.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        }
+
+        await database.ExecuteAsync(
+            "INSERT dbo.Doktorlar (Ad_Soyad, Brans, TC, Sifre, SifreBicimi, BasarisizGiris) VALUES (N'Dr. Var Olan', N'Dahiliye', N'30000000001', N'-', 0, 0)",
+            ct);
+
+        await using var provider = database.BuildServices(demo: true);
+        Assert.Equal(DemoSeedOutcome.SkippedExistingData, await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct));
+
+        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
+        await Assert.ThrowsAsync<BusinessRuleException>(
+            () => provider.GetRequiredService<IAuthService>().SignInDoctorAsync("Dr. Ada Örnek", "Demo.Doktor1", ct));
     }
 
     /// <summary>
@@ -310,7 +404,7 @@ public sealed class LegacyUpgradeTests
         var peopleBefore = await database.ScalarAsync(People, ct);
         var rowsBefore = await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular", ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
 
         Assert.True(rowsBefore > 0, "The backup has no appointments.");
@@ -336,6 +430,9 @@ public sealed class LegacyUpgradeTests
             "FK_Randevular_Hastalar", "FK_Randevular_Doktorlar",
             "CK_Hastalar_BasarisizGiris", "CK_Doktorlar_BasarisizGiris", "CK_Randevular_Durum",
             "CK_Hastalar_SifreBicimi", "CK_Doktorlar_SifreBicimi",
+            "PK_DoktorCalismaSaatleri", "PK_DoktorIzinGunleri",
+            "FK_DoktorCalismaSaatleri_Doktorlar", "FK_DoktorIzinGunleri_Doktorlar",
+            "CK_DoktorCalismaSaatleri_Gun", "CK_DoktorCalismaSaatleri_Saat",
         ];
         foreach (var name in expected)
         {

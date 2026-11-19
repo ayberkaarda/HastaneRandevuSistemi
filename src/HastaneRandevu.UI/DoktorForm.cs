@@ -3,20 +3,27 @@ using HastaneRandevu.UI.Infrastructure;
 
 namespace HastaneRandevu.UI
 {
-    /// <summary>Doctor panel: the appointments made with the signed-in doctor.</summary>
+    /// <summary>Doctor panel: the appointments made with the signed-in doctor and the way to the own schedule.</summary>
     public partial class DoktorForm : Form
     {
         private readonly IAppointmentService _appointments;
+        private readonly IExportService _exports;
+        private readonly IFormFactory _forms;
         private readonly UserSession _session;
         private readonly ExclusiveOperation _cancel = new();
+        private readonly ExclusiveOperation _export = new();
         private readonly RequestSequence _listRequests = new();
 
-        public DoktorForm(IAppointmentService appointments, UserSession session)
+        public DoktorForm(IAppointmentService appointments, IExportService exports, IFormFactory forms, UserSession session)
         {
             ArgumentNullException.ThrowIfNull(appointments);
+            ArgumentNullException.ThrowIfNull(exports);
+            ArgumentNullException.ThrowIfNull(forms);
             ArgumentNullException.ThrowIfNull(session);
 
             _appointments = appointments;
+            _exports = exports;
+            _forms = forms;
             _session = session;
             Prompts = new MessageBoxPrompts(this);
 
@@ -55,6 +62,30 @@ namespace HastaneRandevu.UI
                 },
                 buttonRandevuIptal);
 
+        /// <summary>
+        /// Saves the agenda of the chosen day as a printable HTML page; ignored while a previous export is
+        /// still running.
+        /// </summary>
+        internal Task<bool> ExportAgendaAsync() =>
+            this.RunExclusiveAsync(
+                _export,
+                async () =>
+                {
+                    var day = DateOnly.FromDateTime(dateTimePickerAjanda.Value);
+                    var path = Prompts.AskSavePath(
+                        $"ajanda-{day:yyyyMMdd}.html",
+                        "HTML dosyası (*.html)|*.html");
+                    if (path is null)
+                    {
+                        return;
+                    }
+
+                    var count = await _exports.ExportAgendaHtmlAsync(_session, day, path);
+                    Prompts.Inform($"{DisplayFormat.Day(day)} ajandası ({count} randevu) kaydedildi. Dosyayı tarayıcıda açıp yazdırabilirsiniz.");
+                },
+                buttonAjanda,
+                dateTimePickerAjanda);
+
         private async Task RefreshAppointmentsAsync()
         {
             var request = _listRequests.Next();
@@ -68,6 +99,19 @@ namespace HastaneRandevu.UI
         private async void DoktorForm_Load(object? sender, EventArgs e) => await LoadAsync();
 
         private async void buttonRandevuIptal_Click(object? sender, EventArgs e) => await CancelAsync();
+
+        private async void buttonCalismaProgrami_Click(object? sender, EventArgs e)
+        {
+            using (var schedule = _forms.Create<CalismaProgramiForm>(_session))
+            {
+                schedule.ShowDialog(this);
+            }
+
+            // Leave days and hours do not change the list, but another window may have cancelled meanwhile.
+            await LoadAsync();
+        }
+
+        private async void buttonAjanda_Click(object? sender, EventArgs e) => await ExportAgendaAsync();
 
         private void buttonCikis_Click(object? sender, EventArgs e) => Close();
     }

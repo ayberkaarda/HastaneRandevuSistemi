@@ -30,8 +30,8 @@ public sealed class AppointmentServiceTests
     {
         Appointment? stored = null;
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()))
-            .Callback<Appointment, CancellationToken>((appointment, _) => stored = appointment)
+        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
+            .Callback<Appointment, ScheduleCheck, CancellationToken>((appointment, _, _) => stored = appointment)
             .ReturnsAsync(99);
 
         var id = await Service().BookAsync(PatientA, 10, NextSlot, Ct);
@@ -80,7 +80,7 @@ public sealed class AppointmentServiceTests
     public async Task Book_LastDayOfTheWindow_IsAccepted()
     {
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
         // 29 May 2026 is a Friday, 88 days ahead; 31 May (day 90) is a Sunday.
         await Service().BookAsync(PatientA, 10, new DateTime(2026, 5, 29, 16, 30, 0), Ct);
@@ -101,7 +101,7 @@ public sealed class AppointmentServiceTests
     public async Task Book_TakenSlot_IsReportedWithAFixedMessage()
     {
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()))
+        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new SlotAlreadyBookedException());
 
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().BookAsync(PatientA, 10, NextSlot, Ct));

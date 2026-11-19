@@ -28,7 +28,5 @@ internal sealed class DoctorConfiguration : IEntityTypeConfiguration<Doctor>
 
         // Doctors sign in with their name, so it has to identify one doctor.
         builder.HasIndex(d => d.FullName, "IX_Doktorlar_Ad_Soyad").IsUnique();
-
-        builder.HasData(SeedData.Doctors);
     }
 }

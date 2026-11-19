@@ -9,7 +9,8 @@ namespace HastaneRandevu.Data.Tests;
 /// <summary>
 /// A private SQLite in-memory database wired through the application's own registrations.
 /// The connection stays open for the lifetime of the instance, which keeps the database alive.
-/// The schema and sample data come from the EF Core model (3 doctors, 2 patients, no appointments).
+/// The schema comes from the EF Core model; demo mode is on, so the demo accounts exist (3 doctors,
+/// 2 patients, no appointments).
 /// </summary>
 public sealed class SqliteDatabase : IAsyncLifetime
 {
@@ -31,7 +32,7 @@ public sealed class SqliteDatabase : IAsyncLifetime
         await _connection.OpenAsync();
 
         var services = new ServiceCollection();
-        services.AddDataAccess(options => options.UseSqlite(_connection));
+        services.AddDataAccess(options => options.UseSqlite(_connection), new DemoDataOptions { Enabled = true });
         services.AddTestBusinessServices(Clock);
         _provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
 

@@ -20,10 +20,11 @@ public sealed class BrandingTests
         using var login = new LoginForm(auth, new NoFormsFactory());
         using var register = new UyeOlForm(auth);
         using var doctorSignIn = new DoktorGirisForm(auth, new NoFormsFactory());
-        using var patientPanel = new MainForm(appointments, Sessions.Patient);
-        using var doctorPanel = new DoktorForm(appointments, Sessions.Doctor);
+        using var patientPanel = TestForms.PatientPanel(appointments);
+        using var doctorPanel = TestForms.DoctorPanel(appointments);
+        using var schedule = new CalismaProgramiForm(new ControlledScheduleService(), Sessions.Doctor);
 
-        foreach (Form form in new Form[] { login, register, doctorSignIn, patientPanel, doctorPanel })
+        foreach (Form form in new Form[] { login, register, doctorSignIn, patientPanel, doctorPanel, schedule })
         {
             Assert.StartsWith(AppText.Title + " - ", form.Text, StringComparison.Ordinal);
             Assert.Same(AppAssets.Icon, form.Icon);

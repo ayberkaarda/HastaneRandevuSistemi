@@ -1,4 +1,4 @@
-﻿using HastaneRandevu.Business;
+using HastaneRandevu.Business;
 using HastaneRandevu.Business.Auditing;
 using HastaneRandevu.Data;
 using HastaneRandevu.Data.Persistence;
@@ -50,7 +50,22 @@ namespace HastaneRandevu.UI
 
             ApplicationConfiguration.Initialize();
 
-            var connectionString = AppConfiguration.ResolveConnectionString(BuildConfiguration());
+            var configuration = BuildConfiguration();
+            var (policy, policyProblems) = AppConfiguration.ReadAppointmentPolicy(configuration);
+            if (policyProblems.Count > 0)
+            {
+                // The problems name settings and limits only, never entered or personal values.
+                Log.Warning("The Appointments settings are invalid: {Problems}", string.Join(" ", policyProblems));
+                Dialogs.Show(
+                    null,
+                    "appsettings.json içindeki \"Appointments\" ayarları geçersiz:\n\n" + string.Join("\n", policyProblems),
+                    AppText.Title,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
+            var connectionString = AppConfiguration.ResolveConnectionString(configuration);
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 Log.Warning("No database connection string is configured");
@@ -65,12 +80,26 @@ namespace HastaneRandevu.UI
                 return;
             }
 
-            using var serviceProvider = ConfigureServices(connectionString);
+            var demo = new DemoDataOptions { Enabled = AppConfiguration.ResolveDemoMode(configuration) };
+            if (demo.Enabled)
+            {
+                Log.Warning("Demo mode is on: demo accounts with published passwords are added to an empty database");
+            }
+
+            using var serviceProvider = ConfigureServices(connectionString, demo, policy);
 
             try
             {
                 // No synchronization context exists yet, so blocking here cannot deadlock.
-                serviceProvider.GetRequiredService<IDatabaseInitializer>().InitializeAsync().GetAwaiter().GetResult();
+                var outcome = serviceProvider.GetRequiredService<IDatabaseInitializer>().InitializeAsync().GetAwaiter().GetResult();
+                if (outcome == DemoSeedOutcome.SkippedExistingData)
+                {
+                    Log.Warning("Demo mode is on but the database already has data; no demo account was added");
+                }
+                else if (outcome == DemoSeedOutcome.Seeded)
+                {
+                    Log.Warning("Demo accounts were added to the empty database");
+                }
             }
 #pragma warning disable CA1031 // Startup boundary: report and exit instead of crashing.
             catch (Exception ex)
@@ -91,12 +120,21 @@ namespace HastaneRandevu.UI
                 .AddEnvironmentVariables()
                 .Build();
 
-        private static ServiceProvider ConfigureServices(string connectionString)
+        private static ServiceProvider ConfigureServices(string connectionString, DemoDataOptions demo, AppointmentPolicy policy)
         {
             var services = new ServiceCollection();
             services.AddSingleton<IAuditLog>(new SerilogAuditLog(Log.Logger));
-            services.AddSqlServerDataAccess(connectionString);
-            services.AddBusinessServices();
+            services.AddSqlServerDataAccess(connectionString, demo);
+            services.AddBusinessServices(policy);
+            if (policy.ShowReminderBalloon)
+            {
+                services.AddSingleton<IReminderNotifier, NotifyIconReminderNotifier>();
+            }
+            else
+            {
+                services.AddSingleton<IReminderNotifier, NullReminderNotifier>();
+            }
+
             services.AddSingleton<IFormFactory, FormFactory>();
             return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
         }
@@ -106,6 +144,7 @@ namespace HastaneRandevu.UI
     internal static class AppConfiguration
     {
         public const string SettingsFileName = "appsettings.json";
+        public const string DemoSettingKey = "Seed:Demo";
 
         /// <summary>Adds an optional JSON settings file located in <paramref name="basePath"/>.</summary>
         public static IConfigurationBuilder AddSettingsFile(this IConfigurationBuilder builder, string basePath, string fileName) =>
@@ -125,6 +164,41 @@ namespace HastaneRandevu.UI
             return string.IsNullOrWhiteSpace(fromEnvironment)
                 ? configuration.GetConnectionString(Program.ConnectionStringName)
                 : fromEnvironment;
+        }
+
+        /// <summary>
+        /// Reads the <c>Appointments</c> section (defaults for missing values) and validates it. Values that
+        /// cannot be converted (for example text for a number) are reported as problems too.
+        /// </summary>
+        public static (AppointmentPolicy Policy, IReadOnlyList<string> Problems) ReadAppointmentPolicy(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            AppointmentPolicy policy;
+            try
+            {
+                policy = configuration.GetSection(AppointmentPolicy.SectionName).Get<AppointmentPolicy>() ?? new AppointmentPolicy();
+            }
+            catch (InvalidOperationException)
+            {
+                return (new AppointmentPolicy(), ["Ayar değerlerinden biri okunamadı."]);
+            }
+
+            return (policy, policy.Validate());
+        }
+
+        /// <summary>
+        /// Demo mode creates the demo accounts whose passwords are published in the README. It is off
+        /// unless HASTANE_DEMO is "1" or "true", or the <c>Seed:Demo</c> setting is true.
+        /// </summary>
+        public static bool ResolveDemoMode(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            static bool IsOn(string? value) =>
+                value is "1" || string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+
+            return IsOn(configuration[DataServiceCollectionExtensions.DemoEnvironmentVariable]) || IsOn(configuration[DemoSettingKey]);
         }
     }
 }

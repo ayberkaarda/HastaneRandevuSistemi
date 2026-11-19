@@ -1,3 +1,4 @@
+using System.Data.Common;
 using HastaneRandevu.Data.Persistence;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
@@ -23,6 +24,41 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         return await Details(db, db.Appointments.Where(a => a.DoctorId == doctorId && a.Status == AppointmentStatus.Active), latestFirst: false)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<AppointmentHistoryEntry>> GetHistoryForPatientAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        return await (
+                from a in db.Appointments.AsNoTracking()
+                join d in db.Doctors on a.DoctorId equals d.Id
+                where a.PatientId == patientId
+                orderby a.StartsAt descending, a.Id descending
+                select new AppointmentHistoryEntry(a.Id, d.FullName, d.Branch, a.StartsAt, a.Status, a.CancelledAt))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<AgendaEntry>> GetAgendaForDoctorAsync(
+        int doctorId,
+        DateTime rangeStart,
+        DateTime rangeEnd,
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        return await (
+                from a in db.Appointments.AsNoTracking()
+                join p in db.Patients on a.PatientId equals p.Id
+                where a.DoctorId == doctorId
+                    && a.Status == AppointmentStatus.Active
+                    && a.StartsAt >= rangeStart
+                    && a.StartsAt < rangeEnd
+                orderby a.StartsAt, a.Id
+                select new AgendaEntry(a.Id, a.StartsAt, p.FullName, p.NationalId))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -54,13 +90,16 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
             .ConfigureAwait(false);
     }
 
-    public async Task<int> AddAsync(Appointment appointment, CancellationToken cancellationToken = default)
+    public async Task<int> AddAsync(Appointment appointment, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(appointment);
+        ArgumentNullException.ThrowIfNull(checkSchedule);
 
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
+        await DoctorLock.AcquireAsync(db, appointment.DoctorId, cancellationToken).ConfigureAwait(false);
+        await CheckScheduleAsync(db, appointment.DoctorId, appointment.StartsAt, checkSchedule, cancellationToken).ConfigureAwait(false);
         if (await IsSlotTakenAsync(db, appointment, cancellationToken).ConfigureAwait(false))
         {
             throw new SlotAlreadyBookedException();
@@ -128,10 +167,100 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
         return updated == 1;
     }
 
+    public async Task<bool> RescheduleAsync(
+        int id,
+        int patientId,
+        DateTime currentStartsAt,
+        DateTime newStartsAt,
+        DateTime startsAfter,
+        DateTime startsNoEarlierThan,
+        ScheduleCheck checkSchedule,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(checkSchedule);
+
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+
+        // The doctor of an appointment never changes, so it can be read before the lock is taken.
+        var doctorId = await db.Appointments
+            .Where(a => a.Id == id)
+            .Select(a => (int?)a.DoctorId)
+            .SingleOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (doctorId is not int doctor)
+        {
+            return false;
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await DoctorLock.AcquireAsync(db, doctor, cancellationToken).ConfigureAwait(false);
+        await CheckScheduleAsync(db, doctor, newStartsAt, checkSchedule, cancellationToken).ConfigureAwait(false);
+        if (await IsSlotTakenAsync(db, doctor, newStartsAt, cancellationToken).ConfigureAwait(false))
+        {
+            throw new SlotAlreadyBookedException();
+        }
+
+        try
+        {
+            // One conditional UPDATE: ownership, status, the time the caller read and the time limits are
+            // decided by the database in the same statement that moves the appointment, so a concurrent
+            // move of the same appointment makes this one match nothing instead of moving it again, and
+            // the filtered unique index rejects the move when another booking or move took the new slot.
+            var updated = await db.Appointments
+                .Where(a => a.Id == id
+                    && a.PatientId == patientId
+                    && a.Status == AppointmentStatus.Active
+                    && a.StartsAt == currentStartsAt
+                    && a.StartsAt > startsAfter
+                    && a.StartsAt >= startsNoEarlierThan)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.StartsAt, newStartsAt), cancellationToken)
+                .ConfigureAwait(false);
+            if (updated != 1)
+            {
+                return false;
+            }
+
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception ex) when (ex is DbException or DbUpdateException)
+        {
+            // Checked on a fresh context so the provider specific error code does not matter.
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            await using var check = await contextFactory.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
+            if (await IsSlotTakenAsync(check, doctor, newStartsAt, CancellationToken.None).ConfigureAwait(false))
+            {
+                throw new SlotAlreadyBookedException("The slot is already booked.", ex);
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Hands the doctor's committed schedule for the day of <paramref name="startsAt"/> to the caller's
+    /// check. Runs under the doctor's lock, so no schedule change can commit until this write has ended.
+    /// </summary>
+    private static async Task CheckScheduleAsync(
+        HospitalDbContext db,
+        int doctorId,
+        DateTime startsAt,
+        ScheduleCheck checkSchedule,
+        CancellationToken cancellationToken)
+    {
+        var day = DateOnly.FromDateTime(startsAt);
+        var workingDays = await DoctorScheduleRepository.ReadWorkingDaysAsync(db, doctorId, cancellationToken).ConfigureAwait(false);
+        var leaveDays = await DoctorScheduleRepository.ReadLeaveDaysAsync(db, doctorId, day, day, cancellationToken).ConfigureAwait(false);
+        checkSchedule(workingDays, leaveDays);
+    }
+
     private static Task<bool> IsSlotTakenAsync(HospitalDbContext db, Appointment appointment, CancellationToken cancellationToken) =>
+        IsSlotTakenAsync(db, appointment.DoctorId, appointment.StartsAt, cancellationToken);
+
+    private static Task<bool> IsSlotTakenAsync(HospitalDbContext db, int doctorId, DateTime startsAt, CancellationToken cancellationToken) =>
         db.Appointments.AnyAsync(
-            a => a.DoctorId == appointment.DoctorId
-                && a.StartsAt == appointment.StartsAt
+            a => a.DoctorId == doctorId
+                && a.StartsAt == startsAt
                 && a.Status == AppointmentStatus.Active,
             cancellationToken);
 

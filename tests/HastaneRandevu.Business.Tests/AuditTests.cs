@@ -25,27 +25,58 @@ public sealed class AuditTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public void Codes_AreStableAndCarryNoData()
+    /// <summary>
+    /// The written codes are an interface of the log file: every event is pinned to its exact code and
+    /// numeric value, so renaming, renumbering or adding an event without a code fails here.
+    /// </summary>
+    public static TheoryData<AuditEvent, int, string> ExpectedCodes => new()
     {
-        foreach (var auditEvent in Enum.GetValues<AuditEvent>())
-        {
-            Assert.Matches("^[a-z_]+(\\.[a-z_]+)+$", AuditCodes.Of(auditEvent));
-        }
+        { AuditEvent.SignInSucceeded, 1, "auth.sign_in.succeeded" },
+        { AuditEvent.SignInFailed, 2, "auth.sign_in.failed" },
+        { AuditEvent.PasswordUpgraded, 4, "auth.password.upgraded" },
+        { AuditEvent.PatientRegistered, 5, "auth.patient.registered" },
+        { AuditEvent.AppointmentBooked, 6, "appointment.booked" },
+        { AuditEvent.AppointmentSlotTaken, 7, "appointment.slot_taken" },
+        { AuditEvent.AppointmentCancelled, 8, "appointment.cancelled" },
+        { AuditEvent.AccessDenied, 9, "access.denied" },
+        { AuditEvent.ScheduleChanged, 10, "schedule.changed" },
+        { AuditEvent.AppointmentRescheduled, 11, "appointment.rescheduled" },
+    };
 
-        Assert.Equal("auth.account.locked", AuditCodes.Of(AuditEvent.SignInLocked));
-        Assert.Equal("patient", AuditCodes.Of(AccountRole.Patient));
-        Assert.Equal("doctor", AuditCodes.Of(AccountRole.Doctor));
+    [Theory]
+    [MemberData(nameof(ExpectedCodes))]
+    public void Code_OfEveryEvent_IsTheFixedValue(AuditEvent auditEvent, int value, string code)
+    {
+        Assert.Equal(value, (int)auditEvent);
+        Assert.Equal(code, AuditCodes.Of(auditEvent));
     }
 
     [Fact]
-    public async Task SignIn_LockedAccount_RecordsOnlyTheLockCode()
+    public void Codes_CoverEveryEventExactlyOnceAndCarryNoData()
+    {
+        var expected = ExpectedCodes.Select(row => (AuditEvent)row.Data.Item1).ToList();
+
+        Assert.Equal(expected.Order(), Enum.GetValues<AuditEvent>().Order());
+        Assert.Equal(expected.Count, expected.Select(AuditCodes.Of).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(Enum.GetValues<AuditEvent>(), e => Assert.Matches("^[a-z_]+(\\.[a-z_]+)+$", AuditCodes.Of(e)));
+        Assert.DoesNotContain("auth.account.locked", Enum.GetValues<AuditEvent>().Select(AuditCodes.Of));
+        Assert.Throws<ArgumentOutOfRangeException>(() => AuditCodes.Of((AuditEvent)3));
+    }
+
+    [Theory]
+    [InlineData(AccountRole.Patient, "patient")]
+    [InlineData(AccountRole.Doctor, "doctor")]
+    [InlineData((AccountRole)7, "unknown")]
+    public void Code_OfRole_IsTheFixedValue(AccountRole role, string code) => Assert.Equal(code, AuditCodes.Of(role));
+
+    [Fact]
+    public async Task SignIn_LockedAccount_RecordsTheSameFailureCodeAsAWrongPassword()
     {
         SetupAccount(new AccountCredentials(7, "Deniz Örnek", NationalId, _hasher.Hash("Gizli.Sifre1"), PasswordFormat.Pbkdf2, 0, Now.AddMinutes(5)));
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => Auth().SignInPatientAsync(NationalId, "Gizli.Sifre1", Ct));
 
-        Assert.Equal([(AuditEvent.SignInLocked, AccountRole.Patient)], _audit.Events);
+        Assert.Equal([(AuditEvent.SignInFailed, AccountRole.Patient)], _audit.Events);
     }
 
     [Fact]
@@ -76,7 +107,7 @@ public sealed class AuditTests
     }
 
     [Fact]
-    public async Task SignIn_LockedByAConcurrentFailure_RecordsTheLockCode()
+    public async Task SignIn_LockedByAConcurrentFailure_RecordsTheFailureCode()
     {
         SetupAccount(new AccountCredentials(7, "Deniz Örnek", NationalId, _hasher.Hash("Gizli.Sifre1"), PasswordFormat.Pbkdf2, 4, null));
         _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, It.IsAny<AccountCredentials>(), Now, null, It.IsAny<CancellationToken>()))
@@ -84,7 +115,7 @@ public sealed class AuditTests
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => Auth().SignInPatientAsync(NationalId, "Gizli.Sifre1", Ct));
 
-        Assert.Equal([(AuditEvent.SignInLocked, AccountRole.Patient)], _audit.Events);
+        Assert.Equal([(AuditEvent.SignInFailed, AccountRole.Patient)], _audit.Events);
     }
 
     [Fact]
@@ -111,7 +142,7 @@ public sealed class AuditTests
     public async Task Book_RecordsBookedOrSlotTaken()
     {
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.SetupSequence(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()))
+        _appointments.SetupSequence(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1)
             .ThrowsAsync(new SlotAlreadyBookedException());
         var patient = new UserSession(AccountRole.Patient, 1, "Hasta", "***");

@@ -25,10 +25,35 @@ internal static class ServiceFactory
             new DoctorSignInInputValidator(),
             audit ?? NullAuditLog.Instance);
 
+    /// <param name="schedules">Doctor schedules; when not given every doctor works the default hours.</param>
     public static AppointmentService Appointments(
         IAppointmentRepository appointments,
         IDoctorRepository doctors,
         TimeProvider time,
+        IAuditLog? audit = null,
+        IDoctorScheduleRepository? schedules = null,
+        AppointmentPolicy? policy = null) =>
+        new(
+            appointments,
+            doctors,
+            schedules ?? new InMemoryScheduleRepository(),
+            time,
+            new BookingInputValidator(),
+            new CancellationInputValidator(),
+            new RescheduleInputValidator(),
+            policy ?? new AppointmentPolicy(),
+            audit ?? NullAuditLog.Instance);
+
+    public static ScheduleService Schedules(
+        IDoctorScheduleRepository schedules,
+        IAppointmentRepository appointments,
+        TimeProvider time,
         IAuditLog? audit = null) =>
-        new(appointments, doctors, time, new BookingInputValidator(), new CancellationInputValidator(), audit ?? NullAuditLog.Instance);
+        new(
+            schedules,
+            appointments,
+            time,
+            new WeeklyHoursInputValidator(),
+            new LeaveDayInputValidator(),
+            audit ?? NullAuditLog.Instance);
 }

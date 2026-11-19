@@ -9,10 +9,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Daily rolling file logs with Serilog under `%LOCALAPPDATA%\HastaneRandevu\logs` (last 30 files kept).
+- Reminders of upcoming appointments after sign-in (in the window, and once as a balloon that takes no focus;
+  `Appointments:ReminderLeadHours` and `Appointments:ShowReminderBalloon`), the patient's history as CSV (UTF-8 BOM,
+  `;`, formula injection neutralised) and the doctor's daily agenda as printable HTML (no scripts, CSP, every value
+  encoded). Exports go through a temporary file, mask national ids and log nothing of their content.
+- Doctor search by name and branch, a month or week calendar of free and full days per doctor and a first free slot
+  finder, all computed in the business layer (leave days, full days and the 90 day window are tested at their limits).
+- Rescheduling: a patient moves their own appointment to a free slot of the same doctor in one conditional update
+  (no cancel and rebook), until `Appointments:RescheduleCutoffHours` before the start (default 2, validated at
+  startup). Races for the new slot between moves and bookings are tested on SQL Server.
+- Doctor working schedule: each doctor sets their own working days and hours and leave days (tables
+  `DoktorCalismaSaatleri` and `DoktorIzinGunleri`, migration `AddDoctorSchedules`). Free slots and bookings follow it; a
+  doctor without a schedule keeps the weekday 09:00-17:00 rule. Only the doctor can change their own schedule; existing
+  appointments are kept and those on a leave day or outside the hours are listed as warnings.
+- Daily rolling file logs with Serilog under `%LOCALAPPDATA%\HastaneRandevu\logs` (files older than
+  30 days are deleted, at most 30 files are kept; tests check this with dated files).
   National ids, names, passwords, appointment details and exception messages are never logged.
-- Anonymous audit entries for sign-in, lockout, password upgrade, registration, booking, cancellation and
-  refused access: a fixed code and a role only, for example `Audit auth.account.locked patient`.
+- Anonymous audit entries for sign-in, password upgrade, registration, booking, cancellation and refused
+  access: a fixed code and a role only, for example `Audit auth.sign_in.failed patient`.
 - Central FluentValidation validators for registration, patient and doctor sign-in, booking and cancellation.
 - Validator boundary tests, Moq tests for the lockout end, the hash upgrade, the 90 day window, the cancellation
   cut-off and ownership, and SQLite tests for the same rules with the real repositories.
@@ -23,6 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- A new database no longer receives accounts with published passwords: the migrations insert no rows, and the
+  demo doctors and patients are created only in demo mode (`HASTANE_DEMO=1` or `Seed:Demo=true`, off by default).
+  Doctor accounts are added by the operator, as there is no screen for that.
 - The checks written by hand in the services moved to the validators; messages, trimming and the order of
   the checks are unchanged (registration password 8-64 characters, sign-in password up to 100).
 - Errors that were written to the trace output are now written to the log file.
@@ -31,6 +48,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - After a refused sign-in the password field, and after a registration the name field, receive the focus once
   the form is enabled again.
+- A sign-in refused because the account is locked is logged as `auth.sign_in.failed`, like every other failed
+  sign-in, instead of with a separate lock code, so a local user who can read the log file cannot tell which
+  account is locked.
+- Two sessions that move the same appointment to different slots no longer both succeed: the move only applies
+  while the appointment is still at the time that was read, otherwise nothing changes and the patient is asked to
+  refresh.
+- Bookings and moves are checked again against the doctor's committed schedule under a per-doctor application
+  lock that leave days and weekly hour changes take as well, so no appointment lands on a day the doctor has just
+  closed, and one written first shows up in the doctor's conflict list. Two first saves of weekly hours can no
+  longer leave the union of both schedules.
+- Demo mode adds the demo accounts only to a database without any patient, doctor or appointment, in one
+  transaction, and logs that it skipped them otherwise; a failed start leaves no demo account behind.
 
 ### Removed
 

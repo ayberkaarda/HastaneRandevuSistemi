@@ -24,7 +24,5 @@ internal sealed class PatientConfiguration : IEntityTypeConfiguration<Patient>
         builder.Property(p => p.LockoutEnd).HasColumnName("KilitBitis");
 
         builder.HasIndex(p => p.NationalId, "IX_Hastalar_TC").IsUnique();
-
-        builder.HasData(SeedData.Patients);
     }
 }

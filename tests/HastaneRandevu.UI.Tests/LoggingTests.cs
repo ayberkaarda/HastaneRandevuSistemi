@@ -38,7 +38,92 @@ public sealed partial class LoggingTests : IDisposable
         var file = Assert.Single(Directory.GetFiles(_directory));
         Assert.Matches(@"hastanerandevu-\d{8}\.log$", file);
         Assert.Contains("probe", File.ReadAllText(file), StringComparison.Ordinal);
+    }
+
+    /// <summary>Files dated before the last 30 days are deleted when the logger opens today's file.</summary>
+    [Fact]
+    public void Retention_DeletesFilesOlderThanThirtyDaysAndKeepsRecentOnes()
+    {
+        int[] ages = [1, 2, 15, 29, 30, 31, 45, 60, 400];
+        Directory.CreateDirectory(_directory);
+        foreach (var age in ages)
+        {
+            File.WriteAllText(DatedFile(age), "old");
+        }
+
+        var unrelated = Path.Combine(_directory, "notes.txt");
+        File.WriteAllText(unrelated, "not a log file");
+
+        using (var logger = AppLogging.CreateLogger(_directory))
+        {
+            logger.Information("probe");
+        }
+
         Assert.Equal(30, AppLogging.RetainedDays);
+        Assert.All(ages.Where(a => a < 30), age => Assert.True(File.Exists(DatedFile(age)), $"The file of {age} days ago was deleted."));
+        Assert.All(ages.Where(a => a >= 30), age => Assert.False(File.Exists(DatedFile(age)), $"The file of {age} days ago was kept."));
+        Assert.True(File.Exists(DatedFile(0)));
+        Assert.True(File.Exists(unrelated));
+    }
+
+    /// <summary>
+    /// More than 30 recent files (several per day, as size or restart sequences produce) are cut to the
+    /// newest 30, today's file included.
+    /// </summary>
+    [Fact]
+    public void Retention_KeepsAtMostThirtyFilesNewestFirst()
+    {
+        Directory.CreateDirectory(_directory);
+        var created = new List<string>();
+        for (var age = 1; age <= 10; age++)
+        {
+            created.Add(DatedFile(age));
+            for (var sequence = 1; sequence <= 3; sequence++)
+            {
+                created.Add(DatedFile(age, sequence));
+            }
+        }
+
+        foreach (var file in created)
+        {
+            File.WriteAllText(file, "old");
+        }
+
+        using (var logger = AppLogging.CreateLogger(_directory))
+        {
+            logger.Information("probe");
+        }
+
+        // Newest first: day 1 sequence 3, 2, 1, base, then day 2 and so on.
+        var newestFirst = created
+            .OrderBy(AgeOf)
+            .ThenByDescending(SequenceOf)
+            .ToList();
+        var remaining = Directory.GetFiles(_directory, "hastanerandevu-*.log");
+        Assert.Equal(AppLogging.RetainedFileCount, remaining.Length);
+        Assert.Equal(30, AppLogging.RetainedFileCount);
+        Assert.All(newestFirst.Take(AppLogging.RetainedFileCount - 1), f => Assert.True(File.Exists(f), Path.GetFileName(f) + " was deleted."));
+        Assert.All(newestFirst.Skip(AppLogging.RetainedFileCount - 1), f => Assert.False(File.Exists(f), Path.GetFileName(f) + " was kept."));
+    }
+
+    private string DatedFile(int age, int sequence = 0)
+    {
+        var day = DateTime.Today.AddDays(-age).ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+        var suffix = sequence == 0 ? string.Empty : "_" + sequence.ToString("000", System.Globalization.CultureInfo.InvariantCulture);
+        return Path.Combine(_directory, $"hastanerandevu-{day}{suffix}.log");
+    }
+
+    private static int AgeOf(string file)
+    {
+        var day = DateTime.ParseExact(Path.GetFileName(file).Substring(15, 8), "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+        return (DateTime.Today - day).Days;
+    }
+
+    private static int SequenceOf(string file)
+    {
+        var name = Path.GetFileNameWithoutExtension(file);
+        var underscore = name.LastIndexOf('_');
+        return underscore < 0 ? 0 : int.Parse(name[(underscore + 1)..], System.Globalization.CultureInfo.InvariantCulture);
     }
 
     [Fact]
@@ -96,7 +181,8 @@ public sealed partial class LoggingTests : IDisposable
             }
         });
 
-        Assert.Contains("[INF] Audit auth.account.locked patient", text, StringComparison.Ordinal);
+        Assert.Contains("[INF] Audit auth.sign_in.failed patient", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("locked", text, StringComparison.Ordinal);
         Assert.Contains("[INF] Audit appointment.cancelled doctor", text, StringComparison.Ordinal);
         Assert.All(Lines(text), line => Assert.Matches(AuditLine(), line));
     }
@@ -115,6 +201,7 @@ public sealed partial class LoggingTests : IDisposable
             .AddSingleton<IPatientRepository>(accounts)
             .AddSingleton<IDoctorRepository>(appointments)
             .AddSingleton<IAppointmentRepository>(appointments)
+            .AddSingleton<IDoctorScheduleRepository>(new EmptySchedules())
             .AddBusinessServices();
         await using var provider = services.BuildServiceProvider();
         var auth = provider.GetRequiredService<IAuthService>();
@@ -153,8 +240,9 @@ public sealed partial class LoggingTests : IDisposable
 
         var text = File.ReadAllText(Assert.Single(Directory.GetFiles(_directory)));
         Assert.Contains("Audit auth.patient.registered patient", text, StringComparison.Ordinal);
-        Assert.Equal(LoginPolicy.MaxFailedAttempts, Regex.Count(text, "Audit auth.sign_in.failed patient"));
-        Assert.Contains("Audit auth.account.locked patient", text, StringComparison.Ordinal);
+        // The refusal of the locked account is counted as one more failure, not as a lock.
+        Assert.Equal(LoginPolicy.MaxFailedAttempts + 1, Regex.Count(text, "Audit auth.sign_in.failed patient"));
+        Assert.DoesNotContain("locked", text, StringComparison.Ordinal);
         Assert.Contains("Audit auth.sign_in.succeeded patient", text, StringComparison.Ordinal);
         Assert.Contains("Audit appointment.booked patient", text, StringComparison.Ordinal);
         Assert.Contains("Audit appointment.slot_taken patient", text, StringComparison.Ordinal);
@@ -162,6 +250,59 @@ public sealed partial class LoggingTests : IDisposable
         Assert.Contains("Audit appointment.cancelled patient", text, StringComparison.Ordinal);
         Assert.All(Lines(text), line => Assert.Matches(AllowedLine(), line));
         AssertNoPersonalData(text);
+    }
+
+    /// <summary>
+    /// The log file is readable by the local Windows user, who knows when they made an attempt. A wrong
+    /// password for an unknown, an unlocked and a locked account must therefore leave identical entries
+    /// (and show identical messages), or the file would reveal which accounts exist or are locked.
+    /// </summary>
+    [Fact]
+    public async Task SignInFailures_DoNotDiscloseLockStateInLocalLog()
+    {
+        const string Unlocked = "10000000450";
+        const string Locked = "10000000528";
+        const string Unknown = "10000000696";
+        var hasher = new PasswordHasher(iterations: 1_000);
+        var accounts = new FixedAccounts(
+            new AccountCredentials(1, PatientName, Unlocked, hasher.Hash(Password), PasswordFormat.Pbkdf2, 0, null),
+            new AccountCredentials(2, "Mert Deneme", Locked, hasher.Hash(Password), PasswordFormat.Pbkdf2, 0, Now.UtcDateTime.AddMinutes(10)));
+
+        var outcomes = new List<(string Message, string[] Entries)>();
+        foreach (var nationalId in new[] { Unknown, Unlocked, Locked })
+        {
+            var directory = Path.Combine(_directory, nationalId);
+            string message;
+            using (var logger = AppLogging.CreateLogger(directory))
+            {
+                var services = new ServiceCollection()
+                    .AddSingleton<IAuditLog>(new SerilogAuditLog(logger))
+                    .AddSingleton<TimeProvider>(new FixedTime(Now))
+                    .AddSingleton<IPasswordHasher>(hasher)
+                    .AddSingleton<IAccountRepository>(accounts)
+                    .AddSingleton<IPatientRepository>(new InMemoryAccounts())
+                    .AddSingleton<IDoctorRepository>(new InMemoryAppointments())
+                    .AddSingleton<IAppointmentRepository>(new InMemoryAppointments())
+                    .AddSingleton<IDoctorScheduleRepository>(new EmptySchedules())
+            .AddBusinessServices();
+                await using var provider = services.BuildServiceProvider();
+
+                var refused = await Assert.ThrowsAsync<BusinessRuleException>(
+                    () => provider.GetRequiredService<IAuthService>().SignInPatientAsync(nationalId, "yanlis-" + Password, Ct));
+                ErrorReporter.Record(logger, refused); // as the sign-in form does
+                message = refused.Message;
+            }
+
+            var entries = Lines(File.ReadAllText(Assert.Single(Directory.GetFiles(directory))))
+                .Select(line => StampPattern().Replace(line, string.Empty))
+                .ToArray();
+            outcomes.Add((message, entries));
+        }
+
+        Assert.Equal(["[INF] Audit auth.sign_in.failed patient", "[WRN] Operation refused: BusinessRuleException"], outcomes[0].Entries);
+        Assert.All(outcomes, o => Assert.Equal(outcomes[0].Entries, o.Entries));
+        Assert.All(outcomes, o => Assert.Equal(outcomes[0].Message, o.Message));
+        Assert.All(outcomes, o => Assert.DoesNotContain(o.Entries, e => e.Contains("locked", StringComparison.OrdinalIgnoreCase)));
     }
 
     public void Dispose()
@@ -190,6 +331,9 @@ public sealed partial class LoggingTests : IDisposable
         text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
     private const string Stamp = @"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{2}:\d{2} ";
+
+    [GeneratedRegex(Stamp)]
+    private static partial Regex StampPattern();
 
     [GeneratedRegex(Stamp + @"\[INF\] Audit [a-z_]+(\.[a-z_]+)+ (patient|doctor)$")]
     private static partial Regex AuditLine();
@@ -276,6 +420,41 @@ public sealed partial class LoggingTests : IDisposable
         }
     }
 
+    /// <summary>Fixed patient accounts; failures and successes are accepted and not stored.</summary>
+    private sealed class FixedAccounts(params AccountCredentials[] patients) : IAccountRepository
+    {
+        public Task<AccountCredentials?> FindPatientByNationalIdAsync(string nationalId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(patients.SingleOrDefault(p => p.NationalId == nationalId));
+
+        public Task<AccountCredentials?> FindDoctorByNameAsync(string fullName, CancellationToken cancellationToken = default) =>
+            Task.FromResult<AccountCredentials?>(null);
+
+        public Task RecordFailedLoginAsync(AccountRole role, int accountId, int maxAttempts, DateTime lockoutEnd, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<bool> RecordSuccessfulLoginAsync(AccountRole role, AccountCredentials verified, DateTime now, string? newPasswordHash, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+    }
+
+    /// <summary>No saved schedules: every doctor works the default hours.</summary>
+    private sealed class EmptySchedules : IDoctorScheduleRepository
+    {
+        public Task<IReadOnlyList<WorkingDay>> GetWorkingDaysAsync(int doctorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<WorkingDay>>([]);
+
+        public Task<IReadOnlyList<DateOnly>> GetLeaveDaysAsync(int doctorId, DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<DateOnly>>([]);
+
+        public Task ReplaceWorkingDaysAsync(int doctorId, IReadOnlyList<WorkingDay> days, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> AddLeaveDayAsync(int doctorId, DateOnly day, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> RemoveLeaveDayAsync(int doctorId, DateOnly day, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     /// <summary>One doctor and a list of appointments with the unique active slot rule.</summary>
     private sealed class InMemoryAppointments : IAppointmentRepository, IDoctorRepository
     {
@@ -292,13 +471,19 @@ public sealed partial class LoggingTests : IDisposable
         public Task<IReadOnlyList<AppointmentDetails>> GetActiveForDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<AppointmentDetails>>([]);
 
+        public Task<IReadOnlyList<AppointmentHistoryEntry>> GetHistoryForPatientAsync(int patientId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AppointmentHistoryEntry>>([]);
+
+        public Task<IReadOnlyList<AgendaEntry>> GetAgendaForDoctorAsync(int doctorId, DateTime rangeStart, DateTime rangeEnd, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AgendaEntry>>([]);
+
         public Task<IReadOnlyList<DateTime>> GetBookedStartsAsync(int doctorId, DateTime rangeStart, DateTime rangeEnd, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<DateTime>>([]);
 
         public Task<Appointment?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_rows.SingleOrDefault(a => a.Id == id));
 
-        public Task<int> AddAsync(Appointment appointment, CancellationToken cancellationToken = default)
+        public Task<int> AddAsync(Appointment appointment, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default)
         {
             if (_rows.Any(a => a.DoctorId == appointment.DoctorId && a.StartsAt == appointment.StartsAt && a.Status == AppointmentStatus.Active))
             {
@@ -308,6 +493,17 @@ public sealed partial class LoggingTests : IDisposable
             appointment.Id = _rows.Count + 1;
             _rows.Add(appointment);
             return Task.FromResult(appointment.Id);
+        }
+
+        public Task<bool> RescheduleAsync(int id, int patientId, DateTime currentStartsAt, DateTime newStartsAt, DateTime startsAfter, DateTime startsNoEarlierThan, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default)
+        {
+            if (_rows.Any(a => a.DoctorId == 1 && a.StartsAt == newStartsAt && a.Status == AppointmentStatus.Active))
+            {
+                return Task.FromException<bool>(new SlotAlreadyBookedException($"{DoctorName} {newStartsAt:O}"));
+            }
+
+            _rows.Single(a => a.Id == id).StartsAt = newStartsAt;
+            return Task.FromResult(true);
         }
 
         public Task<bool> CancelAsync(int id, AccountRole ownerRole, int ownerId, DateTime startsAfter, DateTime cancelledAtUtc, CancellationToken cancellationToken = default)

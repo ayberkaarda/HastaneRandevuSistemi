@@ -9,10 +9,25 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
-- `%LOCALAPPDATA%\HastaneRandevu\logs` altında Serilog ile günlük dönen dosya günlükleri (son 30 dosya saklanır).
+- Girişten sonra yaklaşan randevu hatırlatmaları (pencere içinde ve bir kez odağı almayan bir balon olarak;
+  `Appointments:ReminderLeadHours` ve `Appointments:ShowReminderBalloon`), hastanın geçmişi CSV olarak (UTF-8 BOM, `;`,
+  formül enjeksiyonu önlenmiş) ve doktorun günlük ajandası yazdırılabilir HTML olarak (betik yok, CSP, tüm değerler
+  kodlanmış). Dışa aktarımlar geçici dosya üzerinden yazılır, T.C. Kimlik No'yu maskeler ve içeriklerinden hiçbir şey
+  günlüğe yazılmaz.
+- Ada ve branşa göre doktor arama, doktor başına boş ve dolu günleri gösteren ay/hafta takvimi ve ilk boş randevu
+  bulucu; hepsi iş katmanında hesaplanır (izin günü, dolu gün ve 90 günlük ufuk sınırlarında test edilir).
+- Erteleme: hasta kendi randevusunu aynı doktorun boş bir dilimine tek bir koşullu güncellemeyle taşır (iptal edip
+  yeniden almadan); başlangıca `Appointments:RescheduleCutoffHours` saat kalana kadar (varsayılan 2, açılışta
+  doğrulanır). Yeni dilim için erteleme ve randevu alma yarışları SQL Server'da test edilir.
+- Doktor çalışma programı: her doktor kendi çalışma günlerini, saatlerini ve izin günlerini belirler (`DoktorCalismaSaatleri`
+  ve `DoktorIzinGunleri` tabloları, `AddDoctorSchedules` migration'ı). Boş dilimler ve randevular buna uyar; programı
+  olmayan doktor hafta içi 09:00-17:00 kuralıyla çalışır. Programı yalnızca doktorun kendisi değiştirebilir; mevcut
+  randevular korunur, izin gününe veya saatlerin dışına düşenler uyarı olarak listelenir.
+- `%LOCALAPPDATA%\HastaneRandevu\logs` altında Serilog ile günlük dönen dosya günlükleri (30 günden eski
+  dosyalar silinir, en fazla 30 dosya saklanır; testler bunu tarihli dosyalarla doğrular).
   T.C. kimlik numaraları, adlar, şifreler, randevu ayrıntıları ve istisna mesajları hiçbir zaman günlüğe yazılmaz.
-- Giriş, hesap kilidi, şifre yükseltme, kayıt, randevu alma, iptal ve reddedilen erişim için anonim denetim
-  kayıtları: yalnızca sabit bir kod ve rol, örneğin `Audit auth.account.locked patient`.
+- Giriş, şifre yükseltme, kayıt, randevu alma, iptal ve reddedilen erişim için anonim denetim kayıtları:
+  yalnızca sabit bir kod ve rol, örneğin `Audit auth.sign_in.failed patient`.
 - Kayıt, hasta ve doktor girişi, randevu alma ve iptal için merkezi FluentValidation doğrulayıcıları.
 - Doğrulayıcı sınır testleri; kilidin bitişi, hash yükseltme, 90 günlük ufuk, iptal sınırı ve sahiplik için Moq
   testleri; aynı kurallar için gerçek repository'lerle SQLite testleri.
@@ -24,6 +39,9 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Değişenler
 
+- Yeni bir veritabanına artık şifresi yayımlanmış hesaplar eklenmez: migration'lar hiçbir satır eklemez; demo
+  doktorları ve hastaları yalnızca demo modunda (`HASTANE_DEMO=1` veya `Seed:Demo=true`, varsayılan kapalı)
+  oluşturulur. Doktor ekleme ekranı olmadığından doktor hesaplarını işletmeci ekler.
 - Servislerde elle yazılmış denetimler doğrulayıcılara taşındı; mesajlar, kırpma ve denetim sırası aynıdır
   (kayıtta şifre 8-64 karakter, girişte en fazla 100).
 - Trace çıktısına yazılan hatalar artık günlük dosyasına yazılır.
@@ -31,6 +49,17 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 ### Düzeltilenler
 
 - Reddedilen bir girişten sonra şifre alanı, kayıttan sonra ad alanı, form yeniden etkinleştiğinde odağı alır.
+- Kilitli bir hesaba yapılan giriş denemesi günlüğe ayrı bir kilit koduyla değil, diğer tüm başarısız girişler gibi
+  `auth.sign_in.failed` olarak yazılır; böylece günlük dosyasını okuyabilen yerel kullanıcı hangi hesabın kilitli
+  olduğunu öğrenemez.
+- Aynı randevuyu farklı saatlere taşıyan iki oturum artık ikisi birden başarılı olamaz: taşıma yalnızca randevu
+  hâlâ okunan saatteyse uygulanır; aksi halde hiçbir şey değişmez ve hastadan listeyi yenilemesi istenir.
+- Randevu alma ve erteleme, doktor bazındaki bir uygulama kilidi altında doktorun kaydedilmiş programına göre yeniden
+  denetlenir; izin günü ve haftalık saat değişiklikleri de aynı kilidi alır. Böylece doktorun az önce kapattığı güne
+  randevu yazılmaz, önce yazılan randevu da doktorun çakışma listesinde görünür. Haftalık saatlerin eşzamanlı ilk
+  kaydı artık iki programın birleşimini bırakamaz.
+- Demo modu, demo hesaplarını yalnızca hiç hasta, doktor veya randevu bulunmayan bir veritabanına tek bir transaction
+  içinde ekler; aksi halde eklemeyi atlar ve günlüğe yazar. Yarıda kalan bir açılış hiçbir demo hesabı bırakmaz.
 
 ### Kaldırılanlar
 

@@ -1,4 +1,5 @@
 using FluentValidation;
+using HastaneRandevu.Business.Scheduling;
 using HastaneRandevu.Business.Security;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Business.Validation;
@@ -129,24 +130,24 @@ public sealed class ValidatorTests
     {
         var tomorrow = Now.Date.AddDays(1);
 
-        AssertResult(new BookingInputValidator(), new BookingInput(1, tomorrow.AddHours(hour).AddMinutes(minute), Now), valid, ValidationMessages.InvalidSlot);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, tomorrow.AddHours(hour).AddMinutes(minute), Now, DoctorSchedule.Default), valid, ValidationMessages.InvalidSlot);
     }
 
     [Fact]
     public void Booking_OneSecondIntoASlot_IsRejected() =>
-        AssertResult(new BookingInputValidator(), new BookingInput(1, Now.Date.AddDays(1).AddHours(10).AddSeconds(1), Now), false, ValidationMessages.InvalidSlot);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, Now.Date.AddDays(1).AddHours(10).AddSeconds(1), Now, DoctorSchedule.Default), false, ValidationMessages.InvalidSlot);
 
     [Fact]
     public void Booking_Weekend_IsRejected() =>
-        AssertResult(new BookingInputValidator(), new BookingInput(1, new DateTime(2026, 3, 7, 10, 0, 0), Now), false, ValidationMessages.InvalidSlot);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, new DateTime(2026, 3, 7, 10, 0, 0), Now, DoctorSchedule.Default), false, ValidationMessages.InvalidSlot);
 
     [Fact]
     public void Booking_SlotStartingNow_IsInThePast()
     {
         var now = new DateTime(2026, 3, 4, 10, 30, 0);
 
-        AssertResult(new BookingInputValidator(), new BookingInput(1, now, now), false, ValidationMessages.PastSlot);
-        AssertResult(new BookingInputValidator(), new BookingInput(1, now, now.AddTicks(-1)), true, ValidationMessages.PastSlot);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, now, now, DoctorSchedule.Default), false, ValidationMessages.PastSlot);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, now, now.AddTicks(-1), DoctorSchedule.Default), true, ValidationMessages.PastSlot);
     }
 
     [Fact]
@@ -156,8 +157,8 @@ public sealed class ValidatorTests
         var day91 = day90.AddDays(1);
         Assert.True(AppointmentRules.IsWorkingDay(day90) && AppointmentRules.IsWorkingDay(day91));
 
-        AssertResult(new BookingInputValidator(), new BookingInput(1, day90.AddHours(16.5), Now), true, ValidationMessages.TooFarAhead);
-        AssertResult(new BookingInputValidator(), new BookingInput(1, day91.AddHours(9), Now), false, ValidationMessages.TooFarAhead);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, day90.AddHours(16.5), Now, DoctorSchedule.Default), true, ValidationMessages.TooFarAhead);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, day91.AddHours(9), Now, DoctorSchedule.Default), false, ValidationMessages.TooFarAhead);
     }
 
     [Fact]
@@ -167,14 +168,14 @@ public sealed class ValidatorTests
         var lateNow = Now.Date.AddHours(23).AddMinutes(59);
         var day90 = Now.Date.AddDays(AppointmentRules.MaxDaysAhead);
 
-        AssertResult(new BookingInputValidator(), new BookingInput(1, day90.AddHours(9), lateNow), true, ValidationMessages.TooFarAhead);
+        AssertResult(new BookingInputValidator(), new BookingInput(1, day90.AddHours(9), lateNow, DoctorSchedule.Default), true, ValidationMessages.TooFarAhead);
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-3)]
     public void Booking_NoDoctor_IsReportedBeforeTheTime(int doctorId) =>
-        AssertResult(new BookingInputValidator(), new BookingInput(doctorId, Now.AddYears(-1), Now), false, ValidationMessages.DoctorRequired);
+        AssertResult(new BookingInputValidator(), new BookingInput(doctorId, Now.AddYears(-1), Now, DoctorSchedule.Default), false, ValidationMessages.DoctorRequired);
 
     [Fact]
     public void Cancellation_AlreadyCancelled_IsReportedFirst() =>

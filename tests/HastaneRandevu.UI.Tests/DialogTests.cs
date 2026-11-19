@@ -13,7 +13,7 @@ public sealed class DialogTests
     public void FailingLoad_ShowsTheFixedMessageThroughTheDialogHelper() => Run(() =>
     {
         var before = NoDialogs.Requested.Count;
-        using var form = new MainForm(new FailingAppointmentService(), Sessions.Patient) { Prompts = new RecordingPrompts() };
+        using var form = TestForms.PatientPanel(new FailingAppointmentService(), new RecordingPrompts());
 
         var load = form.LoadAsync();
 
@@ -51,6 +51,9 @@ public sealed class DialogTests
             Task.FromException<int>(Failure());
 
         public Task CancelAsync(UserSession session, int appointmentId, CancellationToken cancellationToken = default) =>
+            Task.FromException(Failure());
+
+        public Task RescheduleAsync(UserSession session, int appointmentId, DateTime newStartsAt, CancellationToken cancellationToken = default) =>
             Task.FromException(Failure());
     }
 }

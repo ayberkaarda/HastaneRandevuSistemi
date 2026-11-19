@@ -23,18 +23,39 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Sign-in** ("Giriş Yap", Sign In) with the national id and the password.
 - ✅ **Booking** ("Randevu Al", Book Appointment): choose a doctor ("Doktor Seçiniz", Select Doctor) with their
   branch, a day ("Tarih Seçiniz", Select Date) and a free time ("Saat Seçiniz", Select Time).
-- ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own upcoming appointments,
+- ✅ **Doctor search** ("Doktor Ara", Find Doctor): filter the doctors by name and branch (Turkish letters or not).
+- ✅ **First free slot** ("İlk Boş Randevu", First Free Slot): the selected doctor's earliest free slot within the
+  90 day window is found by the service and shown in the pickers, ready to book.
+- ✅ **Calendar** ("Takvim", Calendar): the selected doctor's month or week with free (and how many), full, leave,
+  off and out-of-window days; choosing a free day shows its slots.
+- ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own appointments that are not cancelled,
   which can be cancelled ("Randevu İptal", Cancel Appointment) after a confirmation.
+- ✅ **Rescheduling** ("Ertele", Reschedule): an own appointment is moved to a free slot of the same doctor in one
+  atomic step (no cancellation and no new appointment). It must not have started and must be at least
+  `Appointments:RescheduleCutoffHours` hours away (default 2); the new time follows the booking rules.
+- ✅ **Reminders**: after sign-in the appointments starting within `Appointments:ReminderLeadHours` (default 24) are
+  shown inside the window and, if `Appointments:ShowReminderBalloon` is on, once as a notification balloon that never
+  takes the focus.
+- ✅ **History export** ("Geçmişi Dışa Aktar", Export History): the patient's own appointments, cancelled ones
+  included, as CSV (UTF-8 with BOM, `;` separator, formula injection neutralised, national id masked).
 
 ### Doctor panel
 
 - ✅ **Sign-in** ("Doktor Giriş", Doctor Sign In) with the doctor's full name and password.
 - ✅ **Appointments** ("Sisteme Kayıtlı Randevular", Booked Appointments): the patients and times of the
   appointments made with this doctor, which can be cancelled ("İptal Et", Cancel).
+- ✅ **Working schedule** ("Çalışma Programım", My Schedule): the doctor's own working days and hours (30 minute
+  steps, 00:00-24:00) and leave or holiday days. Existing appointments are never changed; those that fall on a leave
+  day or outside the new hours are listed as warnings.
+- ✅ **Daily agenda** ("Ajandayı Dışa Aktar", Export Agenda): the doctor's appointments of a chosen day as a
+  printable HTML page (no scripts, a restrictive content security policy, every value HTML encoded, national ids
+  masked).
 
 ### Appointment rules
 
-- ✅ 30 minute slots on weekdays from 09:00 to 17:00 (the last slot starts at 16:30); weekends have no slots.
+- ✅ 30 minute slots from each doctor's working hours, without their leave days. A doctor who never saved a
+  schedule works weekdays from 09:00 to 17:00 (the last slot starts at 16:30), the original rule, so existing
+  databases behave as before.
 - ✅ Only future slots, at most 90 calendar days ahead (day 90 included).
 - ✅ One active appointment per doctor and slot; a cancelled slot becomes free again.
 - ✅ Cancellation only before the appointment starts; cancelled appointments are kept as history.
@@ -64,6 +85,8 @@ uses EF Core, and the database is created and migrated automatically on startup.
 | Book an appointment | ✅ for themselves only | ❌ |
 | List appointments | ✅ their own | ✅ those made with them |
 | Cancel an appointment | ✅ their own, before it starts | ✅ those made with them, before they start |
+| Change working hours and leave days | ❌ | ✅ their own only |
+| Reschedule an appointment | ✅ their own, up to the cut-off | ❌ |
 | See or change other accounts' appointments | ❌ | ❌ |
 
 ---
@@ -157,6 +180,23 @@ Provide a connection string named `HastaneRandevu`. Any of the following works (
 
 If no connection string is found, the application shows a Turkish message explaining these options and exits.
 
+The `Appointments` section holds the configurable rules (defaults shown); invalid values stop the application with
+a Turkish message that names the setting:
+
+```json
+"Appointments": {
+  "RescheduleCutoffHours": 2,
+  "ReminderLeadHours": 24,
+  "ShowReminderBalloon": true
+}
+```
+
+| Setting | Meaning | Allowed |
+|---|---|---|
+| `RescheduleCutoffHours` | An appointment can be rescheduled until this many hours before it starts | 0-168 |
+| `ReminderLeadHours` | Appointments starting within this many hours are announced after sign-in | 1-168 |
+| `ShowReminderBalloon` | Also show reminders as a notification balloon (never takes the focus) | `true` / `false` |
+
 ### 2. Running
 
 ```powershell
@@ -181,16 +221,25 @@ reports only counts, never names or national ids.
 Take a backup of the database before the first start with the new version, and keep it protected: it still
 contains the plain text passwords.
 
-### 4. Demo accounts
+### 4. Demo mode
 
-A new database contains fictional accounts with synthetic national ids that only pass the checksum:
+By default the database is created empty: the migrations create no account, so no published password works.
+Patients register themselves; the application has no screen for adding doctors, so doctor accounts are
+inserted into `Doktorlar` by the operator (with a PBKDF2 hash, `SifreBicimi = 0`).
 
-| Role | Sign-in | Password |
+Demo mode is off unless it is switched on explicitly, with the environment variable `HASTANE_DEMO=1` or the
+setting `"Seed": { "Demo": true }`. Only then, and only when the database has no patient, doctor or appointment
+yet, are these fictional accounts added on start (synthetic national ids that only pass the checksum). A database
+with any data gets no demo account at all: the start skips the demo accounts and writes a warning to the log.
+The emptiness check and all inserts run in one transaction, so a failed start leaves no demo account behind:
+
+| Role | Sign-in (demo mode only) | Password (demo mode only) |
 |---|---|---|
 | Patient | `10000000450` (Deniz Örnek) or `10000000528` (Mert Deneme) | `Demo.Hasta1` |
 | Doctor | `Dr. Ada Örnek` (Kardiyoloji), `Dr. Can Deneme` (Dahiliye) or `Dr. Ece Taslak` (Ortopedi) | `Demo.Doktor1` |
 
-Remove these accounts or change their passwords before any real use.
+Never switch demo mode on for a database with real data. Databases created by an earlier version of this
+application received these accounts automatically; delete them or change their passwords before real use.
 
 ### 5. Migrations
 
@@ -204,14 +253,14 @@ The design-time factory reads `HASTANE_CONNECTION` and otherwise uses a local SQ
 
 ### 6. Logs
 
-Logs are written to `%LOCALAPPDATA%\HastaneRandevu\logs\hastanerandevu-YYYYMMDD.log`, one file per day, and the
-last 30 files are kept. The folder is outside the repository. Error entries contain only exception types, HResult
+Logs are written to `%LOCALAPPDATA%\HastaneRandevu\logs\hastanerandevu-YYYYMMDD.log`, one file per day. Files
+older than 30 days are deleted, and at most 30 files are kept. The folder is outside the repository. Error entries contain only exception types, HResult
 codes and the method names of the stack trace (no file paths); refused operations log only the exception type.
 Audit entries are a fixed code and a role, for example:
 
 ```text
 2026-11-19 10:42:07.118 +03:00 [INF] Audit auth.sign_in.failed patient
-2026-11-19 10:42:31.502 +03:00 [INF] Audit auth.account.locked patient
+2026-11-19 10:42:31.502 +03:00 [INF] Audit auth.sign_in.succeeded patient
 2026-11-19 10:58:12.034 +03:00 [INF] Audit appointment.booked patient
 ```
 
@@ -263,9 +312,9 @@ dotnet test -c Release
 
 | Project | Type | Scope | Result (`-c Release`) |
 |---|---|---|---|
-| `tests/HastaneRandevu.Business.Tests` | Unit | Validator limits (password 8/64 and 100 at sign-in, name 80, national id checksum, slots 09:00-16:30, day 90/91, cancellation cut-off), PBKDF2 and format upgrade, lockout end, ownership and audit events with strict Moq mocks | 169 passed |
-| `tests/HastaneRandevu.Data.Tests` | Integration | Services and repositories on SQLite in-memory (lockout timing, hash upgrade, slot and window edges, id probing); booking and lockout races, the legacy upgrade and its lock on SQL Server | 42 passed, 1 skipped with SQL Server; 30 passed, 13 skipped without |
-| `tests/HastaneRandevu.UI.Tests` | Unit | Example configuration, error messages, log content and files, dialog helper, focus after unlock, write guards, latest-wins loading, neutral branding | 37 passed |
+| `tests/HastaneRandevu.Business.Tests` | Unit | Validator limits (password 8/64 and 100 at sign-in, name 80, national id checksum, slots 09:00-16:30, day 90/91, cancellation cut-off), PBKDF2 and format upgrade, lockout end, ownership and audit events with strict Moq mocks | 270 passed |
+| `tests/HastaneRandevu.Data.Tests` | Integration | Services and repositories on SQLite in-memory (lockout timing, hash upgrade, slot and window edges, id probing); booking, reschedule, schedule and lockout races, concurrent demo starts, the legacy upgrade and its lock on SQL Server | 74 passed with SQL Server and `HASTANE_LEGACY_BACKUP` (73 and 1 skipped without the backup); 49 passed, 25 skipped without SQL Server |
+| `tests/HastaneRandevu.UI.Tests` | Unit | Example configuration, error messages, log content and files, dialog helper, focus after unlock, write guards, latest-wins loading, neutral branding | 85 passed |
 
 The SQL Server tests use throw-away databases on the server in `HASTANE_TEST_SQLSERVER` (default: local SQL
 Express with Windows authentication) and are skipped when `HASTANE_SKIP_SQL_TESTS=1` is set or no server is

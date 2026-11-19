@@ -22,18 +22,38 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Giriş** ("Giriş Yap"): T.C. Kimlik No ve şifre ile.
 - ✅ **Randevu alma** ("Randevu Al"): branşıyla birlikte bir doktor ("Doktor Seçiniz"), bir gün ("Tarih Seçiniz")
   ve boş bir saat ("Saat Seçiniz") seçilir.
-- ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi yaklaşan randevuları; onaydan sonra iptal edilebilir
+- ✅ **Doktor arama** ("Doktor Ara"): doktorlar ada ve branşa göre süzülür (Türkçe harflerle veya harfsiz).
+- ✅ **İlk boş randevu** ("İlk Boş Randevu"): seçili doktorun 90 günlük aralıktaki en yakın boş dilimi servis
+  tarafından bulunur ve alınmaya hazır olarak seçicilerde gösterilir.
+- ✅ **Takvim** ("Takvim"): seçili doktorun ay veya hafta görünümü; boş (kaç dilim), dolu, izinli, çalışılmayan ve
+  aralık dışı günler. Boş bir gün seçilince o günün saatleri gösterilir.
+- ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
   ("Randevu İptal").
+- ✅ **Erteleme** ("Ertele"): kendi randevusu aynı doktorun boş bir dilimine tek ve atomik bir adımda taşınır (iptal
+  edilip yeniden alınmaz). Randevu başlamamış ve en az `Appointments:RescheduleCutoffHours` saat uzakta olmalıdır
+  (varsayılan 2); yeni saat randevu alma kurallarına uyar.
+- ✅ **Hatırlatmalar**: girişten sonra `Appointments:ReminderLeadHours` (varsayılan 24) saat içinde başlayan
+  randevular pencere içinde ve `Appointments:ShowReminderBalloon` açıksa bir kez, odağı hiç almayan bir bildirim
+  balonu olarak gösterilir.
+- ✅ **Geçmişi dışa aktarma** ("Geçmişi Dışa Aktar"): hastanın iptal edilenler dahil kendi randevuları CSV olarak
+  (UTF-8 BOM, `;` ayırıcı, formül enjeksiyonu önlenmiş, T.C. Kimlik No maskeli).
 
 ### Doktor paneli
 
 - ✅ **Giriş** ("Doktor Giriş"): doktorun adı soyadı ve şifresi ile.
 - ✅ **Randevular** ("Sisteme Kayıtlı Randevular"): bu doktora alınan randevuların hastaları ve saatleri; iptal
   edilebilir ("İptal Et").
+- ✅ **Çalışma programı** ("Çalışma Programım"): doktorun kendi çalışma günleri ve saatleri (yarım saatlik
+  adımlarla, 00:00-24:00) ile izin ve tatil günleri. Mevcut randevular hiçbir zaman değiştirilmez; izin gününe veya
+  yeni saatlerin dışına düşenler uyarı olarak listelenir.
+- ✅ **Günlük ajanda** ("Ajandayı Dışa Aktar"): doktorun seçilen günkü randevuları yazdırılabilir bir HTML sayfası
+  olarak (betik yok, kısıtlayıcı içerik güvenlik politikası, tüm değerler HTML kodlanmış, T.C. Kimlik No'lar maskeli).
 
 ### Randevu kuralları
 
-- ✅ Hafta içi 09:00-17:00 arası 30 dakikalık dilimler (son dilim 16:30'da başlar); hafta sonu dilim yoktur.
+- ✅ Her doktorun çalışma saatlerinden, izin günleri çıkarılarak üretilen 30 dakikalık dilimler. Hiç program
+  kaydetmemiş bir doktor eski kuraldaki gibi hafta içi 09:00-17:00 çalışır (son dilim 16:30'da başlar); böylece
+  mevcut veritabanları eskisi gibi davranır.
 - ✅ Yalnızca ileri tarihli dilimler, en fazla 90 takvim günü sonrası (90. gün dahil).
 - ✅ Bir doktor ve dilim için tek etkin randevu; iptal edilen dilim yeniden boşalır.
 - ✅ İptal yalnızca randevu başlamadan önce yapılabilir; iptal edilen randevular geçmiş olarak saklanır.
@@ -62,6 +82,8 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 | Randevu alma | ✅ yalnızca kendisi için | ❌ |
 | Randevuları listeleme | ✅ kendi randevuları | ✅ kendisine alınanlar |
 | Randevu iptali | ✅ kendi randevuları, başlamadan önce | ✅ kendisine alınanlar, başlamadan önce |
+| Çalışma saatlerini ve izin günlerini değiştirme | ❌ | ✅ yalnızca kendi programı |
+| Randevu erteleme | ✅ kendi randevuları, sınıra kadar | ❌ |
 | Başka hesapların randevularını görme veya değiştirme | ❌ | ❌ |
 
 ---
@@ -157,6 +179,23 @@ geçersiz kılar):
 
 Bağlantı dizesi bulunamazsa uygulama bu seçenekleri açıklayan Türkçe bir mesaj gösterip kapanır.
 
+`Appointments` bölümü ayarlanabilir kuralları içerir (varsayılanlar gösterilmiştir); geçersiz değerler, ayarın adını
+veren Türkçe bir mesajla uygulamayı durdurur:
+
+```json
+"Appointments": {
+  "RescheduleCutoffHours": 2,
+  "ReminderLeadHours": 24,
+  "ShowReminderBalloon": true
+}
+```
+
+| Ayar | Anlamı | İzin verilen |
+|---|---|---|
+| `RescheduleCutoffHours` | Randevu, başlamasına bu kadar saat kalana kadar ertelenebilir | 0-168 |
+| `ReminderLeadHours` | Bu kadar saat içinde başlayan randevular girişten sonra hatırlatılır | 1-168 |
+| `ShowReminderBalloon` | Hatırlatmalar ayrıca bildirim balonu olarak da gösterilir (odağı almaz) | `true` / `false` |
+
 ### 2. Çalıştırma
 
 ```powershell
@@ -180,16 +219,25 @@ T.C. Kimlik No bildirmez.
 
 Yeni sürümle ilk açılıştan önce veritabanının yedeğini alın ve bu yedeği koruyun: düz metin şifreleri hâlâ içerir.
 
-### 4. Deneme hesapları
+### 4. Demo modu
 
-Yeni bir veritabanında, yalnızca sağlama algoritmasını geçen yapay T.C. Kimlik No'larla kurgusal hesaplar bulunur:
+Varsayılan olarak veritabanı boş oluşturulur: migration'lar hiçbir hesap oluşturmaz, bu yüzden yayımlanmış hiçbir
+şifre çalışmaz. Hastalar kendileri kayıt olur; uygulamada doktor ekleme ekranı yoktur, doktor hesaplarını
+işletmeci `Doktorlar` tablosuna ekler (PBKDF2 hash'i ile, `SifreBicimi = 0`).
 
-| Rol | Giriş | Şifre |
+Demo modu, açıkça açılmadıkça kapalıdır: `HASTANE_DEMO=1` ortam değişkeni veya `"Seed": { "Demo": true }`
+ayarıyla açılır. Yalnızca o zaman ve yalnızca veritabanında henüz hiç hasta, doktor veya randevu yoksa açılışta
+şu kurgusal hesaplar eklenir (yalnızca sağlama algoritmasını geçen yapay T.C. Kimlik No'lar). Herhangi bir veri
+içeren veritabanına hiçbir demo hesabı eklenmez: açılış demo hesaplarını atlar ve günlüğe bir uyarı yazar. Boşluk
+denetimi ve bütün eklemeler tek bir transaction içinde yapılır; yarıda kalan bir açılış hiçbir demo hesabı bırakmaz:
+
+| Rol | Giriş (yalnızca demo modunda) | Şifre (yalnızca demo modunda) |
 |---|---|---|
 | Hasta | `10000000450` (Deniz Örnek) veya `10000000528` (Mert Deneme) | `Demo.Hasta1` |
 | Doktor | `Dr. Ada Örnek` (Kardiyoloji), `Dr. Can Deneme` (Dahiliye) veya `Dr. Ece Taslak` (Ortopedi) | `Demo.Doktor1` |
 
-Gerçek kullanımdan önce bu hesapları silin veya şifrelerini değiştirin.
+Gerçek veri içeren bir veritabanında demo modunu asla açmayın. Bu uygulamanın önceki bir sürümüyle oluşturulan
+veritabanlarına bu hesaplar otomatik eklenmişti; gerçek kullanımdan önce silin veya şifrelerini değiştirin.
 
 ### 5. Migration'lar
 
@@ -204,13 +252,13 @@ Tasarım zamanı fabrikası `HASTANE_CONNECTION` değişkenini okur, yoksa yerel
 ### 6. Günlükler
 
 Günlükler `%LOCALAPPDATA%\HastaneRandevu\logs\hastanerandevu-YYYYMMDD.log` dosyalarına, her gün için bir dosya
-olarak yazılır ve son 30 dosya saklanır. Klasör deponun dışındadır. Hata kayıtları yalnızca istisna türlerini,
+olarak yazılır; 30 günden eski dosyalar silinir ve en fazla 30 dosya saklanır. Klasör deponun dışındadır. Hata kayıtları yalnızca istisna türlerini,
 HResult kodlarını ve yığın izindeki metot adlarını içerir (dosya yolu yok); reddedilen işlemler yalnızca istisna
 türünü yazar. Denetim kayıtları sabit bir kod ve rolden oluşur, örneğin:
 
 ```text
 2026-11-19 10:42:07.118 +03:00 [INF] Audit auth.sign_in.failed patient
-2026-11-19 10:42:31.502 +03:00 [INF] Audit auth.account.locked patient
+2026-11-19 10:42:31.502 +03:00 [INF] Audit auth.sign_in.succeeded patient
 2026-11-19 10:58:12.034 +03:00 [INF] Audit appointment.booked patient
 ```
 
@@ -262,9 +310,9 @@ dotnet test -c Release
 
 | Proje | Tür | Kapsam | Sonuç (`-c Release`) |
 |---|---|---|---|
-| `tests/HastaneRandevu.Business.Tests` | Birim | Doğrulayıcı sınırları (şifre 8/64 ve girişte 100, ad 80, T.C. sağlama algoritması, 09:00-16:30 dilimleri, 90./91. gün, iptal sınırı), PBKDF2 ve biçim yükseltme, kilidin bitişi, sıkı Moq mock'larıyla sahiplik ve denetim olayları | 169 başarılı |
-| `tests/HastaneRandevu.Data.Tests` | Entegrasyon | Bellek içi SQLite üzerinde servisler ve repository'ler (kilit zamanlaması, hash yükseltme, dilim ve ufuk sınırları, numara yoklama); SQL Server'da randevu ve kilit yarışları, eski veritabanı yükseltme ve kilidi | SQL Server ile 42 başarılı, 1 atlandı; olmadan 30 başarılı, 13 atlandı |
-| `tests/HastaneRandevu.UI.Tests` | Birim | Örnek yapılandırma, hata mesajları, günlük içeriği ve dosyaları, ileti kutusu yardımcısı, kilit açıldıktan sonra odak, yazma korumaları, en son yanıtın gösterilmesi, tarafsız marka | 37 başarılı |
+| `tests/HastaneRandevu.Business.Tests` | Birim | Doğrulayıcı sınırları (şifre 8/64 ve girişte 100, ad 80, T.C. sağlama algoritması, 09:00-16:30 dilimleri, 90./91. gün, iptal sınırı), PBKDF2 ve biçim yükseltme, kilidin bitişi, sıkı Moq mock'larıyla sahiplik ve denetim olayları | 270 başarılı |
+| `tests/HastaneRandevu.Data.Tests` | Entegrasyon | Bellek içi SQLite üzerinde servisler ve repository'ler (kilit zamanlaması, hash yükseltme, dilim ve ufuk sınırları, numara yoklama); SQL Server'da randevu, erteleme, program ve kilit yarışları, eşzamanlı demo açılışları, eski veritabanı yükseltme ve kilidi | SQL Server ve `HASTANE_LEGACY_BACKUP` ile 74 başarılı (yedek olmadan 73 başarılı, 1 atlandı); SQL Server olmadan 49 başarılı, 25 atlandı |
+| `tests/HastaneRandevu.UI.Tests` | Birim | Örnek yapılandırma, hata mesajları, günlük içeriği ve dosyaları, ileti kutusu yardımcısı, kilit açıldıktan sonra odak, yazma korumaları, en son yanıtın gösterilmesi, tarafsız marka | 85 başarılı |
 
 SQL Server testleri `HASTANE_TEST_SQLSERVER` değişkenindeki sunucuda (varsayılan: Windows kimlik doğrulamalı
 yerel SQL Express) geçici veritabanları kullanır; `HASTANE_SKIP_SQL_TESTS=1` tanımlıysa veya sunucuya

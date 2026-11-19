@@ -8,14 +8,16 @@ public interface IDatabaseInitializer
     /// <summary>
     /// Applies pending EF Core migrations (creating the database when it does not exist). A database
     /// created by the original application is upgraded in place first, keeping its data.
-    /// Providers without migrations get the schema from the model.
+    /// Providers without migrations get the schema from the model. No account is created unless demo
+    /// mode is switched on (<see cref="DemoDataOptions"/>), and even then only in an empty database.
     /// </summary>
-    Task InitializeAsync(CancellationToken cancellationToken = default);
+    /// <returns>What demo mode did, so the caller can report a skipped demo start.</returns>
+    Task<DemoSeedOutcome> InitializeAsync(CancellationToken cancellationToken = default);
 }
 
-internal sealed class DatabaseInitializer(IDbContextFactory<HospitalDbContext> contextFactory) : IDatabaseInitializer
+internal sealed class DatabaseInitializer(IDbContextFactory<HospitalDbContext> contextFactory, DemoDataOptions demo) : IDatabaseInitializer
 {
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    public async Task<DemoSeedOutcome> InitializeAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
 
@@ -31,6 +33,10 @@ internal sealed class DatabaseInitializer(IDbContextFactory<HospitalDbContext> c
             {
                 await db.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            return demo.Enabled
+                ? await DemoDataSeeder.SeedAsync(db, cancellationToken).ConfigureAwait(false)
+                : DemoSeedOutcome.Disabled;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
