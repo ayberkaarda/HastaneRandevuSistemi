@@ -487,14 +487,13 @@ namespace HastaneRandevu.UI
             buttonRandevuAl.AutoSize = false;
             buttonRandevuAl.Dock = DockStyle.Top;
             buttonRandevuAl.Margin = new Padding(0, Spacing.L, 0, 0);
-            var booking = FormLayout.Stack("bookingForm", search, doctor, slot, shortcuts, labelIlkBos, buttonRandevuAl);
-            buttonRandevuAl.Dock = DockStyle.Top;
             var bookingNote = FormLayout.Hint("Randevular 30 dakikalıktır ve en fazla 90 gün sonrasına alınabilir.");
             bookingNote.Name = "bookingHint";
-            bookingNote.Dock = DockStyle.Bottom;
+            bookingNote.Margin = new Padding(0, Spacing.M, 0, 0);
+            var booking = FormLayout.Stack("bookingForm", search, doctor, slot, shortcuts, labelIlkBos, buttonRandevuAl, bookingNote);
+            buttonRandevuAl.Dock = DockStyle.Top;
             var bookingCard = FormLayout.Card("bookingCard", "Randevu al", booking);
             booking.Dock = DockStyle.Top;
-            bookingCard.Controls.Add(bookingNote);
             bookingCard.Margin = new Padding(0, 0, Spacing.S, Spacing.L);
 
             // Reminder card: a bell and the upcoming appointment, or a quiet line when there is none.

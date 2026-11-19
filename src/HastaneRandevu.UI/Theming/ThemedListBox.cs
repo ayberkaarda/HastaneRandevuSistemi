@@ -46,6 +46,9 @@ internal sealed class ThemedListBox : ListBox
         }
 
         ItemHeight = RowHeight();
+
+        // A list that fills a card keeps room for a couple of rows; a smaller window scrolls instead.
+        MinimumSize = new Size(0, 100);
     }
 
     /// <summary>Turns an item into the lines of its row; the item's text is used as a single line when not set.</summary>

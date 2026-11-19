@@ -233,7 +233,7 @@ namespace HastaneRandevu.UI
                 // One bar per day: the hours keep the same width, so they line up from day to day.
                 var row = FormLayout.Bar("weekRow" + day, (works, true), (start, false), (dash, false), (end, false));
                 works.Anchor = AnchorStyles.Left;
-                row.Margin = new Padding(0, 0, 0, 2);
+                row.Margin = Padding.Empty;
                 rows.Add(row);
             }
 
@@ -273,7 +273,7 @@ namespace HastaneRandevu.UI
         private static ThemedComboBox TimePicker(string name, int first, int last)
         {
             var combo = FormLayout.Picker(name, 96);
-            combo.Margin = new Padding(0, 2, 0, 2);
+            combo.Margin = new Padding(0, 1, 0, 1);
             for (var i = first; i <= last; i++)
             {
                 combo.Items.Add(new TimeItem(TimeSpan.FromMinutes(30 * i)));

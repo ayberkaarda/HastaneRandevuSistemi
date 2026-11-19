@@ -179,8 +179,16 @@ namespace HastaneRandevu.UI
                 }
             }
 
+            SetGridMinimum(count / Columns);
             tableGunler.ResumeLayout(true);
         }
+
+        /// <summary>
+        /// The grid never shrinks below the height its rows of days need; a smaller window scrolls instead of
+        /// letting the days overlap (rows that share the height by percentage would shrink below their tiles).
+        /// </summary>
+        private void SetGridMinimum(int weeks) =>
+            tableGunler.MinimumSize = new Size(0, Theme.Fonts.Caption.Height + Spacing.XS + (weeks * (Sizes.CalendarDayHeight + 6)));
 
         /// <summary>Chooses the day shown at <paramref name="index"/>, as a click on it does.</summary>
         internal void ChooseDayAt(int index) => Choose(_dayButtons[index]);
@@ -256,6 +264,7 @@ namespace HastaneRandevu.UI
                 tableGunler.Controls.Add(button, i % Columns, (i / Columns) + 1);
             }
 
+            SetGridMinimum(MonthRows);
             var calendarCard = FormLayout.Card("calendarCard", null, tableGunler);
             calendarCard.Padding = new Padding(Spacing.M);
             calendarCard.Margin = new Padding(0, 0, 0, Spacing.M);
