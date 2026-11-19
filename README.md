@@ -384,4 +384,4 @@ The target machine needs the .NET 10 Desktop Runtime. Put `appsettings.json` nex
 
 ## 📄 License
 
-This project is free for personal and educational use. Commercial use is not permitted.
+Released under the [MIT License](LICENSE).

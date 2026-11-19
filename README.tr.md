@@ -384,4 +384,4 @@ veya `HASTANE_CONNECTION` değişkenini tanımlayın.
 
 ## 📄 Lisans
 
-Bu proje kişisel ve eğitimsel kullanım için ücretsizdir. Ticari amaçla kullanılması yasaktır.
+[MIT Lisansı](LICENSE) ile yayımlanmıştır.
