@@ -310,9 +310,9 @@ dotnet test -c Release
 
 | Project | Type | Scope | Result (`-c Release`) |
 |---|---|---|---|
-| `tests/HastaneRandevu.Business.Tests` | Unit | Validator limits (password 8/64 and 100 at sign-in, name 80, national id checksum, slots 09:00-16:30, day 90/91, cancellation cut-off), PBKDF2 and format upgrade, lockout end, ownership and audit events with strict Moq mocks | 169 passed |
-| `tests/HastaneRandevu.Data.Tests` | Integration | Services and repositories on SQLite in-memory (lockout timing, hash upgrade, slot and window edges, id probing); booking and lockout races, the legacy upgrade and its lock on SQL Server | 42 passed, 1 skipped with SQL Server; 30 passed, 13 skipped without |
-| `tests/HastaneRandevu.UI.Tests` | Unit | Example configuration, error messages, log content and files, dialog helper, focus after unlock, write guards, latest-wins loading, neutral branding | 37 passed |
+| `tests/HastaneRandevu.Business.Tests` | Unit | Validator limits (password 8/64 and 100 at sign-in, name 80, national id checksum, slots 09:00-16:30, day 90/91, cancellation cut-off), PBKDF2 and format upgrade, lockout end, ownership and audit events with strict Moq mocks | 268 passed |
+| `tests/HastaneRandevu.Data.Tests` | Integration | Services and repositories on SQLite in-memory (lockout timing, hash upgrade, slot and window edges, id probing); booking and lockout races, the legacy upgrade and its lock on SQL Server | 63 passed with SQL Server and `HASTANE_LEGACY_BACKUP` (62 and 1 skipped without the backup); 47 passed, 16 skipped without SQL Server |
+| `tests/HastaneRandevu.UI.Tests` | Unit | Example configuration, error messages, log content and files, dialog helper, focus after unlock, write guards, latest-wins loading, neutral branding | 85 passed |
 
 The SQL Server tests use throw-away databases on the server in `HASTANE_TEST_SQLSERVER` (default: local SQL
 Express with Windows authentication) and are skipped when `HASTANE_SKIP_SQL_TESTS=1` is set or no server is
