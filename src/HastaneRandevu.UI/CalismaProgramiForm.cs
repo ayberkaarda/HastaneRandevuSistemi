@@ -264,9 +264,9 @@ namespace HastaneRandevu.UI
             return FormLayout.Page("leavePage", (add, false), (listBoxIzinler, true), (remove, false));
         }
 
-        /// <summary>The patient and time on the first line, the reason on the second.</summary>
+        /// <summary>The time and patient on the first line, the reason on the second; a long name is cut, never the time.</summary>
         private static ListRow ConflictRow(ScheduleConflict conflict) => new(
-            $"{conflict.Appointment.PatientName} · {conflict.Appointment.StartsAt.ToString("d MMMM yyyy dddd, HH:mm", DisplayFormat.Turkish)}",
+            $"{conflict.Appointment.StartsAt.ToString("d MMMM yyyy dddd, HH:mm", DisplayFormat.Turkish)} · {conflict.Appointment.PatientName}",
             conflict.Reason == ScheduleConflictReason.LeaveDay ? "İzin gününe denk geliyor" : "Çalışma saatlerinin dışında kalıyor",
             RowTone.Warning);
 
