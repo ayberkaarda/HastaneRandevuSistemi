@@ -74,6 +74,21 @@ uses EF Core, and the database is created and migrated automatically on startup.
 
 ---
 
+## 🖼️ Screenshots
+
+The images are drawn offscreen by `tools/Screenshots` with an invented hospital (made-up names, national ids that only
+pass the checksum and are shown masked); no window is opened. Select an image for its 2x version. To draw them again:
+`dotnet run --project tools/Screenshots -c Release -- screenshots`.
+
+| | |
+|---|---|
+| [![Patient sign-in](screenshots/hasta-girisi.png)](screenshots/hasta-girisi-2x.png)<br>**Patient sign-in** ("Hasta girişi") | [![Registration](screenshots/hasta-kaydi.png)](screenshots/hasta-kaydi-2x.png)<br>**Registration** ("Hasta kaydı") |
+| [![Patient panel](screenshots/hasta-paneli.png)](screenshots/hasta-paneli-2x.png)<br>**Patient panel** ("Hasta paneli"): booking, first free slot, reminder and appointments | [![Calendar, month view](screenshots/randevu-takvimi.png)](screenshots/randevu-takvimi-2x.png)<br>**Calendar** ("Takvim"), month view with free, full, leave and off days |
+| [![Calendar, week view](screenshots/randevu-takvimi-hafta.png)](screenshots/randevu-takvimi-hafta-2x.png)<br>**Calendar**, week view | [![Rescheduling](screenshots/randevu-erteleme.png)](screenshots/randevu-erteleme-2x.png)<br>**Rescheduling** ("Randevuyu ertele") |
+| [![Doctor sign-in](screenshots/doktor-girisi.png)](screenshots/doktor-girisi-2x.png)<br>**Doctor sign-in** ("Doktor girişi") | [![Doctor panel](screenshots/doktor-paneli.png)](screenshots/doktor-paneli-2x.png)<br>**Doctor panel** ("Doktor paneli") after an agenda export |
+| [![Working schedule](screenshots/calisma-programi.png)](screenshots/calisma-programi-2x.png)<br>**Working schedule** ("Çalışma programım") with leave days and conflicts | [![Confirmation](screenshots/onay-penceresi.png)](screenshots/onay-penceresi-2x.png)<br>**Confirmation** ("Onay") before a cancellation |
+
+---
 ## 🔑 Permission Matrix
 
 | Action | Patient | Doctor |

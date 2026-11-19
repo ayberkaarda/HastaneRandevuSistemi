@@ -71,6 +71,21 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 
 ---
 
+## 🖼️ Ekran görüntüleri
+
+Görseller `tools/Screenshots` ile, uydurma bir hastanenin verisiyle (uydurma isimler, yalnızca doğrulama algoritmasını
+geçen ve maskeli gösterilen T.C. kimlik numaraları) ekran dışında çizilir; hiçbir pencere açılmaz. 2x sürümü için
+görsele tıklayın. Yeniden çizmek için: `dotnet run --project tools/Screenshots -c Release -- screenshots`.
+
+| | |
+|---|---|
+| [![Hasta girişi](screenshots/hasta-girisi.png)](screenshots/hasta-girisi-2x.png)<br>**Hasta girişi** | [![Hasta kaydı](screenshots/hasta-kaydi.png)](screenshots/hasta-kaydi-2x.png)<br>**Hasta kaydı** |
+| [![Hasta paneli](screenshots/hasta-paneli.png)](screenshots/hasta-paneli-2x.png)<br>**Hasta paneli**: randevu alma, ilk boş saat, hatırlatma ve randevular | [![Takvim, ay görünümü](screenshots/randevu-takvimi.png)](screenshots/randevu-takvimi-2x.png)<br>**Takvim**, boş, dolu, izinli ve çalışılmayan günlerle ay görünümü |
+| [![Takvim, hafta görünümü](screenshots/randevu-takvimi-hafta.png)](screenshots/randevu-takvimi-hafta-2x.png)<br>**Takvim**, hafta görünümü | [![Randevu erteleme](screenshots/randevu-erteleme.png)](screenshots/randevu-erteleme-2x.png)<br>**Randevuyu ertele** |
+| [![Doktor girişi](screenshots/doktor-girisi.png)](screenshots/doktor-girisi-2x.png)<br>**Doktor girişi** | [![Doktor paneli](screenshots/doktor-paneli.png)](screenshots/doktor-paneli-2x.png)<br>**Doktor paneli**, ajanda dışa aktarıldıktan sonra |
+| [![Çalışma programı](screenshots/calisma-programi.png)](screenshots/calisma-programi-2x.png)<br>**Çalışma programım**, izin günleri ve programa uymayan randevularla | [![Onay penceresi](screenshots/onay-penceresi.png)](screenshots/onay-penceresi-2x.png)<br>İptalden önce **onay** penceresi |
+
+---
 ## 🔑 Yetki Matrisi
 
 | İşlem | Hasta | Doktor |
