@@ -42,6 +42,14 @@ internal sealed class ThemedComboBox : ComboBox
         {
             // The closed box takes the shared control height, so it lines up with text fields and buttons.
             ItemHeight = Math.Max(Font.Height + 2, Theme.Px(this, Sizes.ControlHeight) - NativeChrome);
+
+            // Table layouts size a box by the height it was given, which was measured before its window existed.
+            // Asking for one pixel more records a height at least as tall as the final box (the native box keeps
+            // its own height), so a table row that holds it grows instead of letting it overlap the next row.
+            var final = Height;
+            Height = final + 1;
+            Height = final;
+            Parent?.PerformLayout(this, nameof(Height));
         }
     }
 
