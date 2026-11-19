@@ -60,7 +60,7 @@
             this.textBoxSifre.Font = new System.Drawing.Font("Segoe UI", 12F);
             this.textBoxSifre.Location = new System.Drawing.Point(27, 258);
             this.textBoxSifre.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.textBoxSifre.MaxLength = 64;
+            this.textBoxSifre.MaxLength = 100;
             this.textBoxSifre.Name = "textBoxSifre";
             this.textBoxSifre.Size = new System.Drawing.Size(289, 34);
             this.textBoxSifre.TabIndex = 1;

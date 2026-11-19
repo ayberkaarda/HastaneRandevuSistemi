@@ -114,6 +114,47 @@ public sealed class LegacyUpgradeTests
         Assert.Contains("IX_Hastalar_TC", nationalId.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The original registration form had no upper limit, so the NVARCHAR(100) column may hold
+    /// passwords longer than the limit for new passwords. They must keep working, also once hashed.
+    /// </summary>
+    [Theory]
+    [InlineData(65)]
+    [InlineData(80)]
+    [InlineData(100)]
+    public async Task Initialize_LegacyLongPassword_RemainsUsableAfterRehash(int length)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var password = SyntheticPassword(length);
+        await using var database = await SqlServerTestDatabase.CreateAsync(ct);
+        await database.ExecuteAsync(LegacySchema, ct);
+        await database.ExecuteAsync(
+            """
+            INSERT dbo.Hastalar (Ad_Soyad, TC, Sifre) VALUES (N'Uzun Şifreli Hasta', N'20000000001', @password);
+            INSERT dbo.Doktorlar (Ad_Soyad, Brans, TC, Sifre) VALUES (N'Dr. Uzun Şifreli', N'Dahiliye', N'20000000003', @password);
+            """,
+            ct,
+            ("@password", password));
+
+        await using var provider = database.BuildServices();
+        await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        var auth = provider.GetRequiredService<IAuthService>();
+
+        // First sign-in verifies the plain text and stores a hash, the second one verifies that hash.
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await auth.SignInPatientAsync("20000000001", password, ct);
+            await auth.SignInDoctorAsync("Dr. Uzun Şifreli", password, ct);
+        }
+
+        Assert.Equal(2, await database.ScalarAsync(
+            """
+            SELECT (SELECT COUNT(*) FROM dbo.Hastalar WHERE Sifre LIKE N'PBKDF2-SHA256$%' AND BasarisizGiris = 0)
+                 + (SELECT COUNT(*) FROM dbo.Doktorlar WHERE Sifre LIKE N'PBKDF2-SHA256$%' AND BasarisizGiris = 0)
+            """,
+            ct));
+    }
+
     [Fact]
     public async Task Initialize_LegacyDatabaseWithConflictingRows_RefusesWithoutChanges()
     {
@@ -213,6 +254,10 @@ public sealed class LegacyUpgradeTests
         Assert.Equal(rowsBefore, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular WHERE Durum = 0", ct));
         await AssertUpgradedSchemaAsync(database, ct);
     }
+
+    /// <summary>A fictional password without white space of exactly <paramref name="length"/> characters.</summary>
+    private static string SyntheticPassword(int length) =>
+        string.Concat(Enumerable.Repeat("Eski.Parola-42/", 10))[..length];
 
     private static async Task AssertUpgradedSchemaAsync(SqlServerTestDatabase database, CancellationToken ct)
     {

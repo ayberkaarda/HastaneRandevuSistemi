@@ -34,7 +34,7 @@
             // textBoxSifre
             //
             this.textBoxSifre.Location = new System.Drawing.Point(120, 100);
-            this.textBoxSifre.MaxLength = 64;
+            this.textBoxSifre.MaxLength = 100;
             this.textBoxSifre.Name = "textBoxSifre";
             this.textBoxSifre.Size = new System.Drawing.Size(200, 22);
             this.textBoxSifre.TabIndex = 1;

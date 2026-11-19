@@ -13,15 +13,19 @@ internal sealed class PendingAuthService : IAuthService
 
     public int RegisterCalls { get; private set; }
 
+    public string? LastSignInPassword { get; private set; }
+
     public Task<UserSession> SignInPatientAsync(string? nationalId, string? password, CancellationToken cancellationToken = default)
     {
         PatientSignInCalls++;
+        LastSignInPassword = password;
         return new TaskCompletionSource<UserSession>().Task;
     }
 
     public Task<UserSession> SignInDoctorAsync(string? fullName, string? password, CancellationToken cancellationToken = default)
     {
         DoctorSignInCalls++;
+        LastSignInPassword = password;
         return new TaskCompletionSource<UserSession>().Task;
     }
 

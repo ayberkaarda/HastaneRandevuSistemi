@@ -35,6 +35,32 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task SignIn_PasswordLongerThanTheLegacyColumn_IsRejectedWithoutTouchingTheRepository()
+    {
+        var tooLong = new string('x', PasswordPolicy.SignInMaxLength + 1);
+
+        var patient = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInPatientAsync(NationalId, tooLong, Ct));
+        var doctor = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().SignInDoctorAsync("Dr. Ada Örnek", tooLong, Ct));
+
+        Assert.Equal(AuthService.PatientInputRequired, patient.Message);
+        Assert.Equal(AuthService.DoctorInputRequired, doctor.Message);
+        _accounts.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task SignInPatient_LegacyPasswordLongerThanTheRegistrationLimit_IsVerified()
+    {
+        var legacy = new string('x', PasswordPolicy.SignInMaxLength);
+        Setup(Account(legacy));
+        _accounts.Setup(a => a.RecordSuccessfulLoginAsync(AccountRole.Patient, 7, It.IsNotNull<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var session = await Service().SignInPatientAsync(NationalId, legacy, Ct);
+
+        Assert.Equal(7, session.AccountId);
+    }
+
+    [Fact]
     public async Task SignInPatient_UnknownAccount_GivesTheSameAnswerAsAWrongPassword()
     {
         _accounts.Setup(a => a.FindPatientByNationalIdAsync(NationalId, It.IsAny<CancellationToken>()))

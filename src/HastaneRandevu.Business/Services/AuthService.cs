@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using HastaneRandevu.Business.Security;
 using HastaneRandevu.Business.Validation;
@@ -52,7 +53,7 @@ internal sealed class AuthService(
         CancellationToken cancellationToken = default)
     {
         var id = nationalId?.Trim();
-        if (!NationalIdNumber.HasValidFormat(id) || string.IsNullOrEmpty(password) || password.Length > PasswordPolicy.MaxLength)
+        if (!NationalIdNumber.HasValidFormat(id) || !IsAcceptableSignInPassword(password))
         {
             throw new BusinessRuleException(PatientInputRequired);
         }
@@ -68,7 +69,7 @@ internal sealed class AuthService(
         CancellationToken cancellationToken = default)
     {
         var name = fullName?.Trim();
-        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(password) || password.Length > PasswordPolicy.MaxLength)
+        if (string.IsNullOrEmpty(name) || !IsAcceptableSignInPassword(password))
         {
             throw new BusinessRuleException(DoctorInputRequired);
         }
@@ -124,6 +125,13 @@ internal sealed class AuthService(
             throw new BusinessRuleException(NationalIdTaken, ex);
         }
     }
+
+    /// <summary>
+    /// Sign-in only bounds the input by what an existing account can hold; the registration rules of
+    /// <see cref="PasswordPolicy"/> apply to new passwords and would lock out legacy accounts here.
+    /// </summary>
+    private static bool IsAcceptableSignInPassword([NotNullWhen(true)] string? password) =>
+        !string.IsNullOrEmpty(password) && password.Length <= PasswordPolicy.SignInMaxLength;
 
     private async Task<UserSession> SignInAsync(
         AccountRole role,
