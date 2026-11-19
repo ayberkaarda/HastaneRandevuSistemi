@@ -42,6 +42,38 @@ public sealed class ConfigurationTests
         Assert.Equal("Server=from-environment;", AppConfiguration.ResolveConnectionString(configuration));
     }
 
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData("0", null, false)]
+    [InlineData("yes", null, false)]
+    [InlineData(null, "false", false)]
+    [InlineData("1", null, true)]
+    [InlineData("TRUE", null, true)]
+    [InlineData(null, "true", true)]
+    public void DemoMode_IsOffUnlessSwitchedOnExplicitly(string? environment, string? setting, bool expected)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [DataServiceCollectionExtensions.DemoEnvironmentVariable] = environment,
+                [AppConfiguration.DemoSettingKey] = setting,
+            })
+            .Build();
+
+        Assert.Equal(expected, AppConfiguration.ResolveDemoMode(configuration));
+    }
+
+    [Fact]
+    public void ExampleConfiguration_LeavesDemoModeOff()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddSettingsFile(AppContext.BaseDirectory, ExampleFileName)
+            .Build();
+
+        Assert.Equal("HASTANE_DEMO", DataServiceCollectionExtensions.DemoEnvironmentVariable);
+        Assert.False(AppConfiguration.ResolveDemoMode(configuration));
+    }
+
     [Fact]
     public void SettingsFile_IsUsedWithoutEnvironmentVariable()
     {

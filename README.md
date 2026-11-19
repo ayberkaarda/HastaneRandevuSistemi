@@ -181,16 +181,23 @@ reports only counts, never names or national ids.
 Take a backup of the database before the first start with the new version, and keep it protected: it still
 contains the plain text passwords.
 
-### 4. Demo accounts
+### 4. Demo mode
 
-A new database contains fictional accounts with synthetic national ids that only pass the checksum:
+By default the database is created empty: the migrations create no account, so no published password works.
+Patients register themselves; the application has no screen for adding doctors, so doctor accounts are
+inserted into `Doktorlar` by the operator (with a PBKDF2 hash, `SifreBicimi = 0`).
 
-| Role | Sign-in | Password |
+Demo mode is off unless it is switched on explicitly, with the environment variable `HASTANE_DEMO=1` or the
+setting `"Seed": { "Demo": true }`. Only then are these fictional accounts added on start (synthetic national ids
+that only pass the checksum; existing rows are never changed):
+
+| Role | Sign-in (demo mode only) | Password (demo mode only) |
 |---|---|---|
 | Patient | `10000000450` (Deniz Örnek) or `10000000528` (Mert Deneme) | `Demo.Hasta1` |
 | Doctor | `Dr. Ada Örnek` (Kardiyoloji), `Dr. Can Deneme` (Dahiliye) or `Dr. Ece Taslak` (Ortopedi) | `Demo.Doktor1` |
 
-Remove these accounts or change their passwords before any real use.
+Never switch demo mode on for a database with real data. Databases created by an earlier version of this
+application received these accounts automatically; delete them or change their passwords before real use.
 
 ### 5. Migrations
 

@@ -180,16 +180,23 @@ T.C. Kimlik No bildirmez.
 
 Yeni sürümle ilk açılıştan önce veritabanının yedeğini alın ve bu yedeği koruyun: düz metin şifreleri hâlâ içerir.
 
-### 4. Deneme hesapları
+### 4. Demo modu
 
-Yeni bir veritabanında, yalnızca sağlama algoritmasını geçen yapay T.C. Kimlik No'larla kurgusal hesaplar bulunur:
+Varsayılan olarak veritabanı boş oluşturulur: migration'lar hiçbir hesap oluşturmaz, bu yüzden yayımlanmış hiçbir
+şifre çalışmaz. Hastalar kendileri kayıt olur; uygulamada doktor ekleme ekranı yoktur, doktor hesaplarını
+işletmeci `Doktorlar` tablosuna ekler (PBKDF2 hash'i ile, `SifreBicimi = 0`).
 
-| Rol | Giriş | Şifre |
+Demo modu, açıkça açılmadıkça kapalıdır: `HASTANE_DEMO=1` ortam değişkeni veya `"Seed": { "Demo": true }`
+ayarıyla açılır. Yalnızca o zaman açılışta şu kurgusal hesaplar eklenir (yalnızca sağlama algoritmasını geçen
+yapay T.C. Kimlik No'lar; mevcut satırlar hiçbir zaman değiştirilmez):
+
+| Rol | Giriş (yalnızca demo modunda) | Şifre (yalnızca demo modunda) |
 |---|---|---|
 | Hasta | `10000000450` (Deniz Örnek) veya `10000000528` (Mert Deneme) | `Demo.Hasta1` |
 | Doktor | `Dr. Ada Örnek` (Kardiyoloji), `Dr. Can Deneme` (Dahiliye) veya `Dr. Ece Taslak` (Ortopedi) | `Demo.Doktor1` |
 
-Gerçek kullanımdan önce bu hesapları silin veya şifrelerini değiştirin.
+Gerçek veri içeren bir veritabanında demo modunu asla açmayın. Bu uygulamanın önceki bir sürümüyle oluşturulan
+veritabanlarına bu hesaplar otomatik eklenmişti; gerçek kullanımdan önce silin veya şifrelerini değiştirin.
 
 ### 5. Migration'lar
 

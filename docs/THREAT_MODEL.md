@@ -27,8 +27,9 @@ special category of personal data. This document lists technical measures only; 
   ownership is enforced by the application, and anyone holding the connection string can read every table.
 - The operator is the data controller and is responsible for consent, retention, deletion requests and the
   security of the server, its logins and its backups.
-- The demo accounts created in a new database are fictional and use synthetic national ids that only pass the
-  checksum; they must be removed or have their passwords changed before real use.
+- A new database contains no account by default. Demo accounts (fictional, synthetic national ids that only
+  pass the checksum, passwords published in the README) are created only when demo mode is switched on
+  explicitly with `HASTANE_DEMO=1` or `Seed:Demo=true`; demo mode is never used with real data.
 
 ## Threats and mitigations
 
@@ -57,6 +58,7 @@ special category of personal data. This document lists technical measures only; 
 | Direct table access with the application's SQL login | Grant that login only the table permissions it needs, prefer Windows authentication, and do not give the connection string to patients | Documented |
 | Database backups exposing personal data and legacy plain text passwords | `*.bak`, `*.mdf` and `*.ldf` are git-ignored and the old tracked backup was removed. Backups taken before the upgrade, or while legacy accounts remain, contain plain text passwords: encrypt them (SQL Server backup encryption or an encrypted volume), restrict access and delete old ones | Documented |
 | Legacy upgrade altering or exposing existing rows | The upgrade runs in one transaction under a checked `sp_getapplock` lock and refuses before any change when rows break the new rules, reporting counts only | Mitigated |
+| Accounts with published passwords in a default installation | The migrations insert no rows; the demo accounts are added by a separate seeder only in demo mode, which is off unless `HASTANE_DEMO=1` or `Seed:Demo=true` is set. Tests check that a default start on SQLite and on SQL Server creates no account and that the demo passwords are refused | Mitigated (see residual risks for older databases) |
 | Fake or malformed national ids | Registration checks the 11 digit format and the checksum; sign-in checks the format only | Mitigated |
 | Data kept longer than needed | No retention or deletion feature; cancelled appointments stay as history. The operator deletes data in the database when required | Accepted (out of scope for this version) |
 
@@ -65,6 +67,10 @@ special category of personal data. This document lists technical measures only; 
 - Accounts migrated from the original application keep their plain text password until their next successful
   sign-in. An operator can force the change by resetting those passwords; the format column shows which
   accounts are affected (`SifreBicimi = 1`).
+- Databases created by an earlier version of this application received the demo accounts through the first
+  migration. They are not removed automatically, because real appointments may refer to them; the operator
+  deletes them or changes their passwords.
+- There is no screen for adding doctors; the operator inserts doctor accounts into the database.
 - Doctors sign in by full name, which is easy to guess; the lockout and the password are the only protection.
 - There is no password change or reset screen yet.
 - On a Windows account shared by several application users, each of them can read when sign-ins, bookings and

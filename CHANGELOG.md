@@ -24,6 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- A new database no longer receives accounts with published passwords: the migrations insert no rows, and the
+  demo doctors and patients are created only in demo mode (`HASTANE_DEMO=1` or `Seed:Demo=true`, off by default).
+  Doctor accounts are added by the operator, as there is no screen for that.
 - The checks written by hand in the services moved to the validators; messages, trimming and the order of
   the checks are unchanged (registration password 8-64 characters, sign-in password up to 100).
 - Errors that were written to the trace output are now written to the log file.

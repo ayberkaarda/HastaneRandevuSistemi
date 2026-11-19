@@ -25,6 +25,9 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Değişenler
 
+- Yeni bir veritabanına artık şifresi yayımlanmış hesaplar eklenmez: migration'lar hiçbir satır eklemez; demo
+  doktorları ve hastaları yalnızca demo modunda (`HASTANE_DEMO=1` veya `Seed:Demo=true`, varsayılan kapalı)
+  oluşturulur. Doktor ekleme ekranı olmadığından doktor hesaplarını işletmeci ekler.
 - Servislerde elle yazılmış denetimler doğrulayıcılara taşındı; mesajlar, kırpma ve denetim sırası aynıdır
   (kayıtta şifre 8-64 karakter, girişte en fazla 100).
 - Trace çıktısına yazılan hatalar artık günlük dosyasına yazılır.
