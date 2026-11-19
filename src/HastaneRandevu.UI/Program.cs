@@ -1,9 +1,11 @@
 ﻿using HastaneRandevu.Business;
+using HastaneRandevu.Business.Auditing;
 using HastaneRandevu.Data;
 using HastaneRandevu.Data.Persistence;
 using HastaneRandevu.UI.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 
 namespace HastaneRandevu.UI
 {
@@ -15,15 +17,43 @@ namespace HastaneRandevu.UI
         [STAThread]
         private static void Main()
         {
+            Log.Logger = AppLogging.CreateLogger(AppLogging.DefaultDirectory);
+            try
+            {
+                Log.Information("Application started");
+                Run();
+            }
+            finally
+            {
+                Log.Information("Application stopped");
+                Log.CloseAndFlush();
+            }
+        }
+
+        private static void Run()
+        {
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += (_, e) => ErrorReporter.Show(e.Exception);
-            AppDomain.CurrentDomain.UnhandledException += (_, e) => ErrorReporter.Show(e.ExceptionObject as Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                if (e.IsTerminating)
+                {
+                    Log.Fatal("Unhandled exception terminates the application");
+                }
+
+                ErrorReporter.Show(e.ExceptionObject as Exception);
+                if (e.IsTerminating)
+                {
+                    Log.CloseAndFlush();
+                }
+            };
 
             ApplicationConfiguration.Initialize();
 
             var connectionString = AppConfiguration.ResolveConnectionString(BuildConfiguration());
             if (string.IsNullOrWhiteSpace(connectionString))
             {
+                Log.Warning("No database connection string is configured");
                 Dialogs.Show(
                     null,
                     "Veritabanı bağlantı ayarı bulunamadı.\n\n"
@@ -64,6 +94,7 @@ namespace HastaneRandevu.UI
         private static ServiceProvider ConfigureServices(string connectionString)
         {
             var services = new ServiceCollection();
+            services.AddSingleton<IAuditLog>(new SerilogAuditLog(Log.Logger));
             services.AddSqlServerDataAccess(connectionString);
             services.AddBusinessServices();
             services.AddSingleton<IFormFactory, FormFactory>();
