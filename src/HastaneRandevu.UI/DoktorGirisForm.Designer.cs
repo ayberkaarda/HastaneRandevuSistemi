@@ -1,4 +1,4 @@
-﻿namespace Hastane_Randevu_Sistemi
+﻿namespace HastaneRandevu.UI
 {
     partial class DoktorGirisForm
     {
@@ -15,7 +15,6 @@
 
         private void InitializeComponent()
         {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(DoktorGirisForm));
             this.textBoxDoktorIsim = new System.Windows.Forms.TextBox();
             this.textBoxSifre = new System.Windows.Forms.TextBox();
             this.buttonGiris = new System.Windows.Forms.Button();
@@ -23,24 +22,26 @@
             this.labelDoktorIsim = new System.Windows.Forms.Label();
             this.labelSifre = new System.Windows.Forms.Label();
             this.SuspendLayout();
-            // 
+            //
             // textBoxDoktorIsim
-            // 
+            //
             this.textBoxDoktorIsim.Location = new System.Drawing.Point(120, 50);
+            this.textBoxDoktorIsim.MaxLength = 100;
             this.textBoxDoktorIsim.Name = "textBoxDoktorIsim";
             this.textBoxDoktorIsim.Size = new System.Drawing.Size(200, 22);
             this.textBoxDoktorIsim.TabIndex = 0;
-            // 
+            //
             // textBoxSifre
-            // 
+            //
             this.textBoxSifre.Location = new System.Drawing.Point(120, 100);
+            this.textBoxSifre.MaxLength = 64;
             this.textBoxSifre.Name = "textBoxSifre";
-            this.textBoxSifre.PasswordChar = '*';
             this.textBoxSifre.Size = new System.Drawing.Size(200, 22);
             this.textBoxSifre.TabIndex = 1;
-            // 
+            this.textBoxSifre.UseSystemPasswordChar = true;
+            //
             // buttonGiris
-            // 
+            //
             this.buttonGiris.Location = new System.Drawing.Point(120, 150);
             this.buttonGiris.Name = "buttonGiris";
             this.buttonGiris.Size = new System.Drawing.Size(75, 30);
@@ -48,9 +49,10 @@
             this.buttonGiris.Text = "Giriş";
             this.buttonGiris.UseVisualStyleBackColor = true;
             this.buttonGiris.Click += new System.EventHandler(this.buttonGiris_Click);
-            // 
+            //
             // buttonIptal
-            // 
+            //
+            this.buttonIptal.DialogResult = System.Windows.Forms.DialogResult.Cancel;
             this.buttonIptal.Location = new System.Drawing.Point(245, 150);
             this.buttonIptal.Name = "buttonIptal";
             this.buttonIptal.Size = new System.Drawing.Size(75, 30);
@@ -58,27 +60,29 @@
             this.buttonIptal.Text = "İptal";
             this.buttonIptal.UseVisualStyleBackColor = true;
             this.buttonIptal.Click += new System.EventHandler(this.buttonIptal_Click);
-            // 
+            //
             // labelDoktorIsim
-            // 
+            //
             this.labelDoktorIsim.AutoSize = true;
             this.labelDoktorIsim.Location = new System.Drawing.Point(32, 55);
             this.labelDoktorIsim.Name = "labelDoktorIsim";
             this.labelDoktorIsim.Size = new System.Drawing.Size(77, 16);
             this.labelDoktorIsim.TabIndex = 4;
             this.labelDoktorIsim.Text = "Doktor İsmi:";
-            // 
+            //
             // labelSifre
-            // 
+            //
             this.labelSifre.AutoSize = true;
             this.labelSifre.Location = new System.Drawing.Point(30, 100);
             this.labelSifre.Name = "labelSifre";
             this.labelSifre.Size = new System.Drawing.Size(37, 16);
             this.labelSifre.TabIndex = 5;
             this.labelSifre.Text = "Şifre:";
-            // 
+            //
             // DoktorGirisForm
-            // 
+            //
+            this.AcceptButton = this.buttonGiris;
+            this.CancelButton = this.buttonIptal;
             this.ClientSize = new System.Drawing.Size(400, 250);
             this.Controls.Add(this.labelSifre);
             this.Controls.Add(this.labelDoktorIsim);
@@ -86,10 +90,12 @@
             this.Controls.Add(this.buttonGiris);
             this.Controls.Add(this.textBoxSifre);
             this.Controls.Add(this.textBoxDoktorIsim);
-            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
             this.Name = "DoktorGirisForm";
-            this.Text = "Doktor Giriş";
-            this.Load += new System.EventHandler(this.DoktorGirisForm_Load);
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
+            this.Text = "Hastane Randevu - Doktor Giriş";
             this.ResumeLayout(false);
             this.PerformLayout();
 
