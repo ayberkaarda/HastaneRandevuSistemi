@@ -1,3 +1,4 @@
+using HastaneRandevu.Data.Persistence;
 using System.Globalization;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,12 +50,13 @@ internal sealed class SqlServerTestDatabase : IAsyncDisposable
 
     /// <summary>
     /// The application's services on this database. Each provider has its own connection pool, so
-    /// two providers behave like two application instances.
+    /// two providers behave like two application instances. Demo mode is on unless
+    /// <paramref name="demo"/> is false, because most tests sign in with the demo accounts.
     /// </summary>
-    public ServiceProvider BuildServices(Action<IServiceCollection>? configure = null)
+    public ServiceProvider BuildServices(Action<IServiceCollection>? configure = null, bool demo = true)
     {
         var services = new ServiceCollection();
-        services.AddSqlServerDataAccess(ConnectionString);
+        services.AddSqlServerDataAccess(ConnectionString, new DemoDataOptions { Enabled = demo });
         services.AddTestBusinessServices(Clock);
         configure?.Invoke(services);
         return services.BuildServiceProvider();

@@ -61,7 +61,7 @@ public sealed class LegacyUpgradeTests
         await database.ExecuteAsync(LegacySchema, ct);
         await database.ExecuteAsync(LegacyData, ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         var initializer = provider.GetRequiredService<IDatabaseInitializer>();
         await initializer.InitializeAsync(ct);
         await initializer.InitializeAsync(ct); // Second start must be a no-op.
@@ -143,7 +143,7 @@ public sealed class LegacyUpgradeTests
             ct,
             ("@password", password));
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
         var auth = provider.GetRequiredService<IAuthService>();
 
@@ -183,7 +183,7 @@ public sealed class LegacyUpgradeTests
             ("@patient", PatientPassword),
             ("@doctor", DoctorPassword));
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
         var auth = provider.GetRequiredService<IAuthService>();
 
@@ -237,7 +237,7 @@ public sealed class LegacyUpgradeTests
             """,
             ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         var error = await Assert.ThrowsAsync<DatabaseInitializationException>(
             () => provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct));
 
@@ -254,13 +254,35 @@ public sealed class LegacyUpgradeTests
     }
 
     [Fact]
-    public async Task Initialize_EmptyDatabase_AppliesMigrationWithFictionalSampleData()
+    public async Task Initialize_DefaultConfiguration_DoesNotCreateDemoCredentials()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync(ct);
+        await initializer.InitializeAsync(ct);
+
+        // The migrations create the schema only: no account, so no published password works.
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular", ct));
+        var auth = provider.GetRequiredService<IAuthService>();
+        await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInDoctorAsync("Dr. Ada Örnek", "Demo.Doktor1", ct));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInPatientAsync("10000000450", "Demo.Hasta1", ct));
+        await AssertUpgradedSchemaAsync(database, ct);
+    }
+
+    [Fact]
+    public async Task Initialize_EmptyDatabaseInDemoMode_CreatesTheFictionalDemoAccountsOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+
+        await using var provider = database.BuildServices(demo: true);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct); // no duplicates
 
         var session = await provider.GetRequiredService<IAuthService>().SignInDoctorAsync("Dr. Ece Taslak", "Demo.Doktor1", ct);
         Assert.Equal(3, session.AccountId);
@@ -310,7 +332,7 @@ public sealed class LegacyUpgradeTests
         var peopleBefore = await database.ScalarAsync(People, ct);
         var rowsBefore = await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular", ct);
 
-        await using var provider = database.BuildServices();
+        await using var provider = database.BuildServices(demo: false);
         await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
 
         Assert.True(rowsBefore > 0, "The backup has no appointments.");

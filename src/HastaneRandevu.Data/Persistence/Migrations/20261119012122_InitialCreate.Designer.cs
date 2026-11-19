@@ -122,35 +122,6 @@ namespace HastaneRandevu.Data.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Doktorlar_BasarisizGiris", "[BasarisizGiris] >= 0");
                         });
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Branch = "Kardiyoloji",
-                            FailedLoginCount = 0,
-                            FullName = "Dr. Ada Örnek",
-                            NationalId = "10000000146",
-                            PasswordHash = "PBKDF2-SHA256$600000$POBLGXwub/9Fp+d1fn82Hw==$pFvbcSUAJcXvZGOE/vQl28HWttZWt3J9fs/HvKZKhYU="
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Branch = "Dahiliye",
-                            FailedLoginCount = 0,
-                            FullName = "Dr. Can Deneme",
-                            NationalId = "10000000214",
-                            PasswordHash = "PBKDF2-SHA256$600000$qe32m/2niYriZlrLXX/Txw==$tqXg28OLoLB4cDDVhFKks7o1YeJwdfA3vV9bvJeLoN0="
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Branch = "Ortopedi",
-                            FailedLoginCount = 0,
-                            FullName = "Dr. Ece Taslak",
-                            NationalId = "10000000382",
-                            PasswordHash = "PBKDF2-SHA256$600000$Vd7YUlXgvduthbLitDC7ow==$Qzi+CYoFWFqRuu/gjbS+yZK99xJi3DRbOHHj1AcuzAY="
-                        });
                 });
 
             modelBuilder.Entity("HastaneRandevu.Domain.Entities.Patient", b =>
@@ -197,24 +168,6 @@ namespace HastaneRandevu.Data.Persistence.Migrations
                     b.ToTable("Hastalar", null, t =>
                         {
                             t.HasCheckConstraint("CK_Hastalar_BasarisizGiris", "[BasarisizGiris] >= 0");
-                        });
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            FailedLoginCount = 0,
-                            FullName = "Deniz Örnek",
-                            NationalId = "10000000450",
-                            PasswordHash = "PBKDF2-SHA256$600000$E8lC16zcX8bS+fT0Jrf0cw==$TMREiFHa9ZGNrjxcCavxj3DIHdezh58JIYtkwR8Suws="
-                        },
-                        new
-                        {
-                            Id = 2,
-                            FailedLoginCount = 0,
-                            FullName = "Mert Deneme",
-                            NationalId = "10000000528",
-                            PasswordHash = "PBKDF2-SHA256$600000$KfV1QUPGviI9YNrUbnuCSQ==$HwqKONeM/WdlrtBIqDdYiM3AAtFxv2jFG/NqVnmgDIE="
                         });
                 });
 

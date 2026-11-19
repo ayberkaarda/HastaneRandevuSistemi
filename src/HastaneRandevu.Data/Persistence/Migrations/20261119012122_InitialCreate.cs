@@ -80,24 +80,7 @@ namespace HastaneRandevu.Data.Persistence.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
-            migrationBuilder.InsertData(
-                table: "Doktorlar",
-                columns: new[] { "DoktorID", "Brans", "BasarisizGiris", "Ad_Soyad", "KilitBitis", "TC", "Sifre" },
-                values: new object[,]
-                {
-                    { 1, "Kardiyoloji", 0, "Dr. Ada Örnek", null, "10000000146", "PBKDF2-SHA256$600000$POBLGXwub/9Fp+d1fn82Hw==$pFvbcSUAJcXvZGOE/vQl28HWttZWt3J9fs/HvKZKhYU=" },
-                    { 2, "Dahiliye", 0, "Dr. Can Deneme", null, "10000000214", "PBKDF2-SHA256$600000$qe32m/2niYriZlrLXX/Txw==$tqXg28OLoLB4cDDVhFKks7o1YeJwdfA3vV9bvJeLoN0=" },
-                    { 3, "Ortopedi", 0, "Dr. Ece Taslak", null, "10000000382", "PBKDF2-SHA256$600000$Vd7YUlXgvduthbLitDC7ow==$Qzi+CYoFWFqRuu/gjbS+yZK99xJi3DRbOHHj1AcuzAY=" }
-                });
 
-            migrationBuilder.InsertData(
-                table: "Hastalar",
-                columns: new[] { "HastaID", "BasarisizGiris", "Ad_Soyad", "KilitBitis", "TC", "Sifre" },
-                values: new object[,]
-                {
-                    { 1, 0, "Deniz Örnek", null, "10000000450", "PBKDF2-SHA256$600000$E8lC16zcX8bS+fT0Jrf0cw==$TMREiFHa9ZGNrjxcCavxj3DIHdezh58JIYtkwR8Suws=" },
-                    { 2, 0, "Mert Deneme", null, "10000000528", "PBKDF2-SHA256$600000$KfV1QUPGviI9YNrUbnuCSQ==$HwqKONeM/WdlrtBIqDdYiM3AAtFxv2jFG/NqVnmgDIE=" }
-                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Doktorlar_Ad_Soyad",

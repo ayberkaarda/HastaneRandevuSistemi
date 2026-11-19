@@ -8,12 +8,13 @@ public interface IDatabaseInitializer
     /// <summary>
     /// Applies pending EF Core migrations (creating the database when it does not exist). A database
     /// created by the original application is upgraded in place first, keeping its data.
-    /// Providers without migrations get the schema from the model.
+    /// Providers without migrations get the schema from the model. No account is created unless demo
+    /// mode is switched on (<see cref="DemoDataOptions"/>).
     /// </summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);
 }
 
-internal sealed class DatabaseInitializer(IDbContextFactory<HospitalDbContext> contextFactory) : IDatabaseInitializer
+internal sealed class DatabaseInitializer(IDbContextFactory<HospitalDbContext> contextFactory, DemoDataOptions demo) : IDatabaseInitializer
 {
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -30,6 +31,11 @@ internal sealed class DatabaseInitializer(IDbContextFactory<HospitalDbContext> c
             else
             {
                 await db.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (demo.Enabled)
+            {
+                await DemoDataSeeder.SeedAsync(db, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
