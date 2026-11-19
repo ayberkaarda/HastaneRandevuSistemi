@@ -167,6 +167,7 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
     public async Task<bool> RescheduleAsync(
         int id,
         int patientId,
+        DateTime currentStartsAt,
         DateTime newStartsAt,
         DateTime startsAfter,
         DateTime startsNoEarlierThan,
@@ -190,13 +191,15 @@ internal sealed class AppointmentRepository(IDbContextFactory<HospitalDbContext>
 
         try
         {
-            // One conditional UPDATE: ownership, status and the time limits are decided by the database
-            // in the same statement that moves the appointment, and the filtered unique index rejects the
-            // move when another booking or move took the new slot in the meantime.
+            // One conditional UPDATE: ownership, status, the time the caller read and the time limits are
+            // decided by the database in the same statement that moves the appointment, so a concurrent
+            // move of the same appointment makes this one match nothing instead of moving it again, and
+            // the filtered unique index rejects the move when another booking or move took the new slot.
             var updated = await db.Appointments
                 .Where(a => a.Id == id
                     && a.PatientId == patientId
                     && a.Status == AppointmentStatus.Active
+                    && a.StartsAt == currentStartsAt
                     && a.StartsAt > startsAfter
                     && a.StartsAt >= startsNoEarlierThan)
                 .ExecuteUpdateAsync(s => s.SetProperty(a => a.StartsAt, newStartsAt), cancellationToken)

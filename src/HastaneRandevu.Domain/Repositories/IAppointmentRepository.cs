@@ -49,15 +49,20 @@ public interface IAppointmentRepository
 
     /// <summary>
     /// Moves the appointment to <paramref name="newStartsAt"/> with the same doctor in one statement,
-    /// only if it is still active, belongs to <paramref name="patientId"/>, starts after
+    /// only if it is still active, belongs to <paramref name="patientId"/>, still starts at
+    /// <paramref name="currentStartsAt"/> (the time the caller read and checked), starts after
     /// <paramref name="startsAfter"/> and not before <paramref name="startsNoEarlierThan"/>. The old slot
     /// becomes free in the same moment; nothing is cancelled or created.
     /// </summary>
-    /// <returns><see langword="false"/> when no appointment matched.</returns>
+    /// <returns>
+    /// <see langword="false"/> when no appointment matched, for example because a concurrent move already
+    /// changed its time; nothing is changed then.
+    /// </returns>
     /// <exception cref="SlotAlreadyBookedException">The doctor already has an active appointment at the new time.</exception>
     Task<bool> RescheduleAsync(
         int id,
         int patientId,
+        DateTime currentStartsAt,
         DateTime newStartsAt,
         DateTime startsAfter,
         DateTime startsNoEarlierThan,

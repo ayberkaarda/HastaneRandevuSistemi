@@ -495,7 +495,7 @@ public sealed partial class LoggingTests : IDisposable
             return Task.FromResult(appointment.Id);
         }
 
-        public Task<bool> RescheduleAsync(int id, int patientId, DateTime newStartsAt, DateTime startsAfter, DateTime startsNoEarlierThan, CancellationToken cancellationToken = default)
+        public Task<bool> RescheduleAsync(int id, int patientId, DateTime currentStartsAt, DateTime newStartsAt, DateTime startsAfter, DateTime startsNoEarlierThan, CancellationToken cancellationToken = default)
         {
             if (_rows.Any(a => a.DoctorId == 1 && a.StartsAt == newStartsAt && a.Status == AppointmentStatus.Active))
             {

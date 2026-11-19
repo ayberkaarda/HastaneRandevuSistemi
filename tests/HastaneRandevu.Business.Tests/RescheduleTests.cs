@@ -94,11 +94,11 @@ public sealed class RescheduleServiceTests
     [Fact]
     public async Task Owner_MovesTheAppointmentInOneRepositoryCall()
     {
-        _appointments.Setup(a => a.RescheduleAsync(5, 1, Target, Now, Now.AddHours(3), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _appointments.Setup(a => a.RescheduleAsync(5, 1, Current, Target, Now, Now.AddHours(3), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         await Service(new AppointmentPolicy { RescheduleCutoffHours = 3 }).RescheduleAsync(_owner, 5, Target, Ct);
 
-        _appointments.Verify(a => a.RescheduleAsync(5, 1, Target, Now, Now.AddHours(3), It.IsAny<CancellationToken>()), Times.Once);
+        _appointments.Verify(a => a.RescheduleAsync(5, 1, Current, Target, Now, Now.AddHours(3), It.IsAny<CancellationToken>()), Times.Once);
         _appointments.Verify(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
         _appointments.Verify(a => a.CancelAsync(It.IsAny<int>(), It.IsAny<AccountRole>(), It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.Equal([(AuditEvent.AppointmentRescheduled, AccountRole.Patient)], _audit);
@@ -118,7 +118,7 @@ public sealed class RescheduleServiceTests
         Assert.Equal(foreign.Message, missing.Message);
         Assert.Equal(3, _audit.Count(a => a.Item1 == AuditEvent.AccessDenied));
         _appointments.Verify(
-            a => a.RescheduleAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            a => a.RescheduleAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -134,7 +134,7 @@ public sealed class RescheduleServiceTests
     [Fact]
     public async Task LostRace_IsReportedAsSlotTaken()
     {
-        _appointments.Setup(a => a.RescheduleAsync(5, 1, Target, Now, Now.AddHours(2), It.IsAny<CancellationToken>()))
+        _appointments.Setup(a => a.RescheduleAsync(5, 1, Current, Target, Now, Now.AddHours(2), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new SlotAlreadyBookedException());
 
         var refused = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().RescheduleAsync(_owner, 5, Target, Ct));
@@ -146,7 +146,7 @@ public sealed class RescheduleServiceTests
     [Fact]
     public async Task ChangedMeanwhile_IsRefusedWithoutAudit()
     {
-        _appointments.Setup(a => a.RescheduleAsync(5, 1, Target, Now, Now.AddHours(2), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _appointments.Setup(a => a.RescheduleAsync(5, 1, Current, Target, Now, Now.AddHours(2), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var refused = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().RescheduleAsync(_owner, 5, Target, Ct));
 

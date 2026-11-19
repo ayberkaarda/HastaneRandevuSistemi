@@ -1,5 +1,6 @@
 using System.Globalization;
 using HastaneRandevu.Business;
+using HastaneRandevu.Business.Auditing;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Data.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -118,6 +119,43 @@ public sealed class SqlServerRescheduleRaceTests
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Two sessions of the same patient read the same appointment and then move it to two different free
+    /// slots. Both reads finish before either move starts, so the second move must notice that the
+    /// appointment is no longer where it read it, instead of silently moving the first session's result.
+    /// </summary>
+    [Fact]
+    public async Task Reschedule_SameSourceDifferentTargets_OnlyOneSucceeds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+        await using var setup = database.BuildServices();
+        await setup.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        var patient = TestServices.Patient(1);
+        var source = new DateTime(2026, 3, 4, 10, 0, 0);
+        var id = await setup.GetRequiredService<IAppointmentService>().BookAsync(patient, 1, source, ct);
+        DateTime[] targets = [new(2026, 3, 5, 10, 0, 0), new(2026, 3, 5, 11, 0, 0)];
+
+        var bothRead = RepositoryHooks.Barrier(2);
+        var audit = new List<AuditEvent>();
+        await using var first = database.BuildServices(s => s.AfterAppointmentRead(bothRead).RecordAudit(audit), demo: false);
+        await using var second = database.BuildServices(s => s.AfterAppointmentRead(bothRead).RecordAudit(audit), demo: false);
+        var sessions = new[] { first, second }.Select(p => p.GetRequiredService<IAppointmentService>()).ToList();
+
+        var results = await RaceAsync(
+            [() => sessions[0].RescheduleAsync(patient, id, targets[0], ct), () => sessions[1].RescheduleAsync(patient, id, targets[1], ct)],
+            ct);
+
+        Assert.Equal(1, results.Count(r => r is null));
+        var loser = Assert.IsType<BusinessRuleException>(Assert.Single(results, r => r is not null));
+        Assert.Equal(AppointmentService.RescheduleFailed, loser.Message);
+        var winnerTarget = targets[Array.FindIndex(results, r => r is null)];
+        Assert.Equal(1, await database.ScalarAsync(
+            "SELECT COUNT(*) FROM dbo.Randevular WHERE RandevuID = @id AND RandevuTarihi = @start AND Durum = 0", ct, ("@id", id), ("@start", winnerTarget)));
+        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Randevular", ct));
+        Assert.Equal([AuditEvent.AppointmentRescheduled], audit);
     }
 
     /// <summary>Starts all attempts at once; returns the exception of each attempt, or null for the winner.</summary>

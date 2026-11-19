@@ -54,7 +54,8 @@ internal sealed class AppointmentService(
 {
     internal const string SlotTaken = "Bu randevu saatinde doktor zaten dolu. Lütfen başka bir zaman seçin.";
     internal const string CancelFailed = "Randevu iptal edilemedi.";
-    internal const string RescheduleFailed = "Randevu ertelenemedi.";
+    internal const string RescheduleFailed =
+        "Randevu ertelenemedi; randevu bu arada değişmiş olabilir. Lütfen randevu listesini yenileyip tekrar deneyin.";
 
     public Task<IReadOnlyList<DoctorSummary>> GetDoctorsAsync(UserSession session, CancellationToken cancellationToken = default)
     {
@@ -206,10 +207,12 @@ internal sealed class AppointmentService(
         bool moved;
         try
         {
-            // The repository repeats ownership, status and both time limits in the moving statement.
+            // The repository repeats ownership, status, the time read above and both time limits in the
+            // moving statement, so a concurrent move of the same appointment is not overwritten.
             moved = await appointments.RescheduleAsync(
                 appointmentId,
                 session.AccountId,
+                appointment.StartsAt,
                 newStartsAt,
                 now,
                 now + policy.RescheduleCutoff,
