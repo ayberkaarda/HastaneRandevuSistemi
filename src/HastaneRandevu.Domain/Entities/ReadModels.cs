@@ -19,6 +19,9 @@ public sealed record DoctorSummary(int Id, string FullName, string? Branch)
     public override string ToString() => DisplayName;
 }
 
+/// <summary>The working hours of a doctor on one day of the week, as local wall clock times.</summary>
+public sealed record WorkingDay(DayOfWeek Day, TimeSpan Start, TimeSpan End);
+
 /// <summary>Who can sign in.</summary>
 public enum AccountRole
 {
