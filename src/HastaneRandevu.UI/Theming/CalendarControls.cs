@@ -140,22 +140,27 @@ internal sealed class DayButton : Button
         var text = Detail(day);
         var barHeight = Theme.Px(this, 4);
         var available = day.Status == CalendarDayStatus.Available;
+        var hasBar = (available || day.Status == CalendarDayStatus.Full) && day.TotalSlots > 0 && !p.IsHighContrast;
 
         // A small tile keeps its detail at the bottom; a tall one (the week view) under the number.
         var tall = Height > Theme.Px(this, Sizes.CalendarDayHeight * 2);
         var detailTop = tall
             ? numberBounds.Bottom + Theme.Px(this, 4)
-            : Math.Max(numberBounds.Bottom, Height - pad - caption.Height - (available ? barHeight + Theme.Px(this, 4) : 0));
+            : Math.Max(numberBounds.Bottom, Height - pad - caption.Height - (hasBar ? barHeight + Theme.Px(this, 4) : 0));
         TextRenderer.DrawText(g, text, caption, new Rectangle(pad, detailTop, Math.Max(0, Width - (2 * pad)), caption.Height), detail, TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
 
-        // The free share of the day as a thin bar, so busy and quiet days read at a glance.
-        if (available && day.TotalSlots > 0 && !p.IsHighContrast)
+        // The free share of the day as a thin bar, so busy and quiet days read at a glance; a full day has an
+        // empty, grey bar.
+        if (hasBar)
         {
             var barTop = tall ? detailTop + caption.Height + Theme.Px(this, 6) : Height - pad - barHeight;
             var track = new RectangleF(pad, barTop, Math.Max(0, Width - (2 * pad)), barHeight);
-            Painting.FillRounded(g, track, barHeight / 2F, p.AccentSubtle);
-            var share = Math.Clamp(day.FreeSlots / (float)day.TotalSlots, 0.08F, 1F);
-            Painting.FillRounded(g, new RectangleF(track.X, track.Y, track.Width * share, track.Height), barHeight / 2F, p.Accent);
+            Painting.FillRounded(g, track, barHeight / 2F, available ? p.AccentSubtle : p.Border);
+            if (available)
+            {
+                var share = Math.Clamp(day.FreeSlots / (float)day.TotalSlots, 0.08F, 1F);
+                Painting.FillRounded(g, new RectangleF(track.X, track.Y, track.Width * share, track.Height), barHeight / 2F, p.Accent);
+            }
         }
     }
 }
@@ -237,7 +242,7 @@ internal sealed class SegmentButton : RadioButton
     }
 }
 
-/// <summary>A small rounded color sample for a legend, for example the color of free days.</summary>
+/// <summary>A small day tile for a legend, for example a free day with its accent bar.</summary>
 internal sealed class Swatch : Control
 {
     public Swatch(CalendarDayStatus status)
@@ -246,7 +251,7 @@ internal sealed class Swatch : Control
         SetStyle(ControlStyles.Selectable, false);
         Status = status;
         TabStop = false;
-        Size = new Size(14, 14);
+        Size = new Size(24, 16); // Wider than tall, so it reads as a tile and not as a check box.
         Margin = new Padding(0, 0, Spacing.XS + 2, 0);
         AccessibleRole = AccessibleRole.Graphic;
     }
@@ -263,11 +268,12 @@ internal sealed class Swatch : Control
         var bounds = new RectangleF(0, 0, Width, Height);
         Painting.FillRounded(e.Graphics, bounds, Theme.PxF(this, 3), fill, Status == CalendarDayStatus.Available ? p.BorderStrong : border ?? detail, Math.Max(1F, Theme.PxF(this, 1)));
 
-        // A free day is a white tile with the accent bar of its free share; the sample shows the bar too.
-        if (Status == CalendarDayStatus.Available && !p.IsHighContrast)
+        // A free day is a white tile with the accent bar of its free share and a full day has a grey bar; the
+        // samples show the bars too.
+        if (Status is CalendarDayStatus.Available or CalendarDayStatus.Full && !p.IsHighContrast)
         {
             var bar = Theme.PxF(this, 3);
-            using var brush = new SolidBrush(p.Accent);
+            using var brush = new SolidBrush(Status == CalendarDayStatus.Available ? p.Accent : p.BorderStrong);
             e.Graphics.FillRectangle(brush, Theme.PxF(this, 3), Height - bar - Theme.PxF(this, 3), Width - Theme.PxF(this, 6), bar);
         }
     }
