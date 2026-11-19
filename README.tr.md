@@ -23,11 +23,11 @@ erişimi EF Core ile yapılır ve veritabanı açılışta otomatik olarak oluş
 - ✅ **Randevu alma** ("Randevu Al"): branşıyla birlikte bir doktor ("Doktor Seçiniz"), bir gün ("Tarih Seçiniz")
   ve boş bir saat ("Saat Seçiniz") seçilir.
 - ✅ **Doktor arama** ("Doktor Ara"): doktorlar ada ve branşa göre süzülür (Türkçe harflerle veya harfsiz).
-- ✅ **İlk boş randevu** ("İlk Boş Randevu"): seçili doktorun 90 günlük aralıktaki en yakın boş dilimi servis
+- ✅ **İlk boş randevu** ("İlk boş saat"): seçili doktorun 90 günlük aralıktaki en yakın boş dilimi servis
   tarafından bulunur ve alınmaya hazır olarak seçicilerde gösterilir.
 - ✅ **Takvim** ("Takvim"): seçili doktorun ay veya hafta görünümü; boş (kaç dilim), dolu, izinli, çalışılmayan ve
   aralık dışı günler. Boş bir gün seçilince o günün saatleri gösterilir.
-- ✅ **Randevularım** ("Aktif Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
+- ✅ **Randevularım** ("Randevularım"): hastanın kendi iptal edilmemiş randevuları; onaydan sonra iptal edilebilir
   ("Randevu İptal").
 - ✅ **Erteleme** ("Ertele"): kendi randevusu aynı doktorun boş bir dilimine tek ve atomik bir adımda taşınır (iptal
   edilip yeniden alınmaz). Randevu başlamamış ve en az `Appointments:RescheduleCutoffHours` saat uzakta olmalıdır
@@ -133,7 +133,7 @@ HastaneRandevuSistemi/
 │   ├── HastaneRandevu.Business.Tests/  # Doğrulayıcılar, kurallar, hash, kilit ve sahiplik (Moq)
 │   ├── HastaneRandevu.Data.Tests/      # SQLite üzerinde servisler ve repository'ler; SQL Server'da yarışlar ve eski veritabanı yükseltme
 │   └── HastaneRandevu.UI.Tests/        # Yapılandırma, hatalar, günlükler, ileti kutuları, odak ve yazma korumaları (pencere açılmaz)
-├── assets/                        # SVG kaynaklarıyla özgün logo, arka plan ve simge
+├── assets/                        # SVG kaynaklarıyla özgün logo ve simge
 ├── docs/THREAT_MODEL.md           # Tehdit modeli
 ├── .github/workflows/ci.yml       # Derleme, test ve sürüm iş akışı
 ├── CHANGELOG.md

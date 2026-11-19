@@ -24,11 +24,11 @@ uses EF Core, and the database is created and migrated automatically on startup.
 - ✅ **Booking** ("Randevu Al", Book Appointment): choose a doctor ("Doktor Seçiniz", Select Doctor) with their
   branch, a day ("Tarih Seçiniz", Select Date) and a free time ("Saat Seçiniz", Select Time).
 - ✅ **Doctor search** ("Doktor Ara", Find Doctor): filter the doctors by name and branch (Turkish letters or not).
-- ✅ **First free slot** ("İlk Boş Randevu", First Free Slot): the selected doctor's earliest free slot within the
+- ✅ **First free slot** ("İlk boş saat", First Free Slot): the selected doctor's earliest free slot within the
   90 day window is found by the service and shown in the pickers, ready to book.
 - ✅ **Calendar** ("Takvim", Calendar): the selected doctor's month or week with free (and how many), full, leave,
   off and out-of-window days; choosing a free day shows its slots.
-- ✅ **My appointments** ("Aktif Randevularım", My Active Appointments): the patient's own appointments that are not cancelled,
+- ✅ **My appointments** ("Randevularım", My Appointments): the patient's own appointments that are not cancelled,
   which can be cancelled ("Randevu İptal", Cancel Appointment) after a confirmation.
 - ✅ **Rescheduling** ("Ertele", Reschedule): an own appointment is moved to a free slot of the same doctor in one
   atomic step (no cancellation and no new appointment). It must not have started and must be at least
@@ -136,7 +136,7 @@ HastaneRandevuSistemi/
 │   ├── HastaneRandevu.Business.Tests/  # Validators, rules, hashing, lockout and ownership (Moq)
 │   ├── HastaneRandevu.Data.Tests/      # Services and repositories on SQLite; races and legacy upgrade on SQL Server
 │   └── HastaneRandevu.UI.Tests/        # Configuration, errors, logs, dialogs, focus and write guards (no windows shown)
-├── assets/                        # Original logo, background and icon with their SVG sources
+├── assets/                        # Original logo and icon with their SVG sources
 ├── docs/THREAT_MODEL.md           # Threat model
 ├── .github/workflows/ci.yml       # Build, test and release workflow
 ├── CHANGELOG.md
