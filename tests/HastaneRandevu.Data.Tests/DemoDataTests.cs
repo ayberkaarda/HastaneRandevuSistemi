@@ -1,3 +1,4 @@
+using System.Data.Common;
 using HastaneRandevu.Business;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Data.Persistence;
@@ -103,6 +104,32 @@ public sealed class DemoDataTests
         await Assert.ThrowsAsync<BusinessRuleException>(() => auth.SignInPatientAsync("10000000450", "Demo.Hasta1", ct));
     }
 
+    /// <summary>
+    /// The second demo insert fails: the start fails and the first demo account is rolled back with
+    /// everything else, so a later start finds an empty database and adds the full set.
+    /// </summary>
+    [Fact]
+    public async Task Initialize_DemoSeedFailure_RollsBackAllAccounts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(ct);
+
+        await using (var failing = DemoServices(connection, new FailingInsert(failOn: 2)))
+        {
+            await Assert.ThrowsAsync<DatabaseInitializationException>(() => failing.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct));
+            await using var check = await failing.GetRequiredService<IDbContextFactory<HospitalDbContext>>().CreateDbContextAsync(ct);
+            Assert.Equal(0, await check.Doctors.CountAsync(ct));
+            Assert.Equal(0, await check.Patients.CountAsync(ct));
+        }
+
+        await using var retry = DemoServices(connection);
+        Assert.Equal(DemoSeedOutcome.Seeded, await retry.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct));
+        await using var seeded = await retry.GetRequiredService<IDbContextFactory<HospitalDbContext>>().CreateDbContextAsync(ct);
+        Assert.Equal([1, 2, 3], await seeded.Doctors.OrderBy(d => d.Id).Select(d => d.Id).ToListAsync(ct));
+        Assert.Equal(2, await seeded.Patients.CountAsync(ct));
+    }
+
     /// <summary>Creates the schema without demo mode and adds one account, as an existing installation would have.</summary>
     private static async Task AddExistingAccountAsync(SqliteConnection connection, Action<HospitalDbContext> add, CancellationToken ct)
     {
@@ -121,5 +148,22 @@ public sealed class DemoDataTests
         services.AddDataAccess(options => options.UseSqlite(connection).AddInterceptors(interceptors), new DemoDataOptions { Enabled = true });
         services.AddTestBusinessServices(new FakeTimeProvider(TestServices.Start));
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>Fails the <paramref name="failOn"/>-th INSERT command before it is sent.</summary>
+    private sealed class FailingInsert(int failOn) : DbCommandInterceptor
+    {
+        private int _inserts;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("INSERT INTO", StringComparison.Ordinal) && Interlocked.Increment(ref _inserts) == failOn)
+            {
+                throw new InvalidOperationException("Injected failure of a demo insert.");
+            }
+
+            return ValueTask.FromResult(result);
+        }
     }
 }
