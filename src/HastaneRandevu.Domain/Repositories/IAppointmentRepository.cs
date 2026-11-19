@@ -29,9 +29,12 @@ public interface IAppointmentRepository
 
     Task<Appointment?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
-    /// <summary>Stores a new active appointment and returns its id.</summary>
+    /// <summary>
+    /// Stores a new active appointment and returns its id, after <paramref name="checkSchedule"/> accepted
+    /// it against the doctor's current schedule inside the same transaction.
+    /// </summary>
     /// <exception cref="SlotAlreadyBookedException">The doctor already has an active appointment at that time.</exception>
-    Task<int> AddAsync(Appointment appointment, CancellationToken cancellationToken = default);
+    Task<int> AddAsync(Appointment appointment, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Cancels the appointment atomically, only if it is still active, starts after
@@ -52,7 +55,8 @@ public interface IAppointmentRepository
     /// only if it is still active, belongs to <paramref name="patientId"/>, still starts at
     /// <paramref name="currentStartsAt"/> (the time the caller read and checked), starts after
     /// <paramref name="startsAfter"/> and not before <paramref name="startsNoEarlierThan"/>. The old slot
-    /// becomes free in the same moment; nothing is cancelled or created.
+    /// becomes free in the same moment; nothing is cancelled or created. <paramref name="checkSchedule"/>
+    /// decides on the doctor's current schedule for the new time inside the same transaction.
     /// </summary>
     /// <returns>
     /// <see langword="false"/> when no appointment matched, for example because a concurrent move already
@@ -66,8 +70,17 @@ public interface IAppointmentRepository
         DateTime newStartsAt,
         DateTime startsAfter,
         DateTime startsNoEarlierThan,
+        ScheduleCheck checkSchedule,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Decides whether a booking or a move fits the doctor's schedule as committed at the moment of the
+/// write. The repository calls it inside the writing transaction, under the doctor's lock that every
+/// schedule change takes as well, with the doctor's weekly hours (empty for the default hours) and the
+/// leave days on the appointment's day. Throwing refuses the write; nothing is stored.
+/// </summary>
+public delegate void ScheduleCheck(IReadOnlyList<WorkingDay> workingDays, IReadOnlyList<DateOnly> leaveDays);
 
 /// <summary>Raised when a doctor's slot is already taken by an active appointment.</summary>
 public sealed class SlotAlreadyBookedException : Exception

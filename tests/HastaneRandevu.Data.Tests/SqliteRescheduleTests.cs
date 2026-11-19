@@ -89,14 +89,15 @@ public sealed class SqliteRescheduleTests : IAsyncLifetime
         var id = await Appointments.BookAsync(TestServices.Patient(1), 1, TestServices.Tomorrow10, Ct);
         var repository = _db.Get<IAppointmentRepository>();
         var now = TestServices.Start.DateTime;
+        var any = TestServices.AnySchedule;
 
-        Assert.False(await repository.RescheduleAsync(id, 2, TestServices.Tomorrow10, Target, now, now, Ct));                                  // not the owner
-        Assert.False(await repository.RescheduleAsync(id, 1, TestServices.Tomorrow10, Target, TestServices.Tomorrow10, now, Ct));              // started
-        Assert.False(await repository.RescheduleAsync(id, 1, TestServices.Tomorrow10, Target, now, TestServices.Tomorrow10.AddTicks(1), Ct));  // past the cut-off
-        Assert.False(await repository.RescheduleAsync(id + 1, 1, TestServices.Tomorrow10, Target, now, now, Ct));
-        Assert.False(await repository.RescheduleAsync(id, 1, Target.AddHours(1), Target, now, now, Ct));                         // moved meanwhile                              // missing
+        Assert.False(await repository.RescheduleAsync(id, 2, TestServices.Tomorrow10, Target, now, now, any, Ct));                                 // not the owner
+        Assert.False(await repository.RescheduleAsync(id, 1, TestServices.Tomorrow10, Target, TestServices.Tomorrow10, now, any, Ct));             // started
+        Assert.False(await repository.RescheduleAsync(id, 1, TestServices.Tomorrow10, Target, now, TestServices.Tomorrow10.AddTicks(1), any, Ct)); // past the cut-off
+        Assert.False(await repository.RescheduleAsync(id + 1, 1, TestServices.Tomorrow10, Target, now, now, any, Ct));                             // missing
+        Assert.False(await repository.RescheduleAsync(id, 1, Target.AddHours(1), Target, now, now, any, Ct));                                      // moved meanwhile
         await Appointments.CancelAsync(TestServices.Patient(1), id, Ct);
-        Assert.False(await repository.RescheduleAsync(id, 1, TestServices.Tomorrow10, Target, now, now, Ct));                                  // cancelled
+        Assert.False(await repository.RescheduleAsync(id, 1, TestServices.Tomorrow10, Target, now, now, any, Ct));                                 // cancelled
 
         await using var context = _db.CreateContext();
         Assert.Equal(TestServices.Tomorrow10, (await context.Appointments.SingleAsync(Ct)).StartsAt);

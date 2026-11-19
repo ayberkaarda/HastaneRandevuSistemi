@@ -113,8 +113,9 @@ internal sealed class AppointmentService(
         CancellationToken cancellationToken = default)
     {
         RequirePatient(session);
+        var now = LocalNow();
         var schedule = await LoadScheduleForAsync(doctorId, startsAt, cancellationToken).ConfigureAwait(false);
-        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, LocalNow(), schedule));
+        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, now, schedule));
 
         if (!await doctors.ExistsAsync(doctorId, cancellationToken).ConfigureAwait(false))
         {
@@ -132,7 +133,13 @@ internal sealed class AppointmentService(
         int id;
         try
         {
-            id = await appointments.AddAsync(appointment, cancellationToken).ConfigureAwait(false);
+            // The schedule read above may change before the write; the repository repeats the check on
+            // the schedule as committed, under the doctor's lock that schedule changes take too.
+            id = await appointments.AddAsync(
+                appointment,
+                (workingDays, leaveDays) => bookingValidator.ValidateOrThrow(
+                    new BookingInput(doctorId, startsAt, now, new DoctorSchedule(workingDays, leaveDays))),
+                cancellationToken).ConfigureAwait(false);
         }
         catch (SlotAlreadyBookedException ex)
         {
@@ -208,7 +215,8 @@ internal sealed class AppointmentService(
         try
         {
             // The repository repeats ownership, status, the time read above and both time limits in the
-            // moving statement, so a concurrent move of the same appointment is not overwritten.
+            // moving statement, so a concurrent move of the same appointment is not overwritten, and
+            // checks the new time again on the doctor's schedule as committed, under the doctor's lock.
             moved = await appointments.RescheduleAsync(
                 appointmentId,
                 session.AccountId,
@@ -216,6 +224,13 @@ internal sealed class AppointmentService(
                 newStartsAt,
                 now,
                 now + policy.RescheduleCutoff,
+                (workingDays, leaveDays) => rescheduleValidator.ValidateOrThrow(new RescheduleInput(
+                    appointment.Status,
+                    appointment.StartsAt,
+                    newStartsAt,
+                    now,
+                    policy.RescheduleCutoff,
+                    new DoctorSchedule(workingDays, leaveDays))),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (SlotAlreadyBookedException ex)

@@ -47,7 +47,7 @@ public sealed class AppointmentScheduleTests
 
         Assert.Empty(slots);
         Assert.Equal(ValidationMessages.InvalidSlot, refused.Message);
-        _appointments.Verify(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()), Times.Never);
+        _appointments.Verify(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class AppointmentScheduleTests
     {
         _schedules.Hours[10] = [new WorkingDay(DayOfWeek.Saturday, TimeSpan.FromHours(8), TimeSpan.FromHours(10))];
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>())).ReturnsAsync(5);
+        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>())).ReturnsAsync(5);
 
         Assert.Equal(5, await Service().BookAsync(_patient, 10, Saturday.AddHours(8), Ct));
         Assert.Equal(5, await Service().BookAsync(_patient, 10, Saturday.AddHours(9.5), Ct));
@@ -64,6 +64,45 @@ public sealed class AppointmentScheduleTests
 
         Assert.Equal(ValidationMessages.InvalidSlot, afterEnd.Message);
         Assert.Equal(ValidationMessages.InvalidSlot, oldHours.Message);
+    }
+
+    /// <summary>
+    /// The schedule the service read first may be stale when the repository writes; the check handed to
+    /// the repository decides again on the schedule it reads under the doctor's lock.
+    /// </summary>
+    [Fact]
+    public async Task Booking_IsCheckedAgainOnTheScheduleSeenByTheWrite()
+    {
+        _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _appointments.Setup(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
+            .Returns<Appointment, ScheduleCheck, CancellationToken>((_, check, _) =>
+            {
+                check([], [DateOnly.FromDateTime(Tuesday)]); // the doctor took the day off meanwhile
+                return Task.FromResult(5);
+            });
+
+        var refused = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().BookAsync(_patient, 10, Tuesday.AddHours(10), Ct));
+
+        Assert.Equal(ValidationMessages.InvalidSlot, refused.Message);
+    }
+
+    [Fact]
+    public async Task Reschedule_IsCheckedAgainOnTheScheduleSeenByTheWrite()
+    {
+        var current = new DateTime(2026, 3, 4, 10, 0, 0);
+        _appointments.Setup(a => a.GetByIdAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Appointment { Id = 7, PatientId = 1, DoctorId = 10, StartsAt = current, Status = AppointmentStatus.Active });
+        _appointments.Setup(a => a.RescheduleAsync(
+                7, 1, current, Tuesday.AddHours(10), Now, Now.AddHours(2), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
+            .Returns<int, int, DateTime, DateTime, DateTime, DateTime, ScheduleCheck, CancellationToken>((_, _, _, _, _, _, check, _) =>
+            {
+                check([new WorkingDay(DayOfWeek.Tuesday, TimeSpan.FromHours(13), TimeSpan.FromHours(17))], []); // hours narrowed
+                return Task.FromResult(true);
+            });
+
+        var refused = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().RescheduleAsync(_patient, 7, Tuesday.AddHours(10), Ct));
+
+        Assert.Equal(ValidationMessages.InvalidSlot, refused.Message);
     }
 
     [Fact]

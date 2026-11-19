@@ -79,8 +79,8 @@ internal static class RepositoryHooks
             return appointment;
         }
 
-        public Task<int> AddAsync(Appointment appointment, CancellationToken cancellationToken = default) =>
-            inner.AddAsync(appointment, cancellationToken);
+        public Task<int> AddAsync(Appointment appointment, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default) =>
+            inner.AddAsync(appointment, checkSchedule, cancellationToken);
 
         public Task<bool> CancelAsync(int id, AccountRole ownerRole, int ownerId, DateTime startsAfter, DateTime cancelledAtUtc, CancellationToken cancellationToken = default) =>
             inner.CancelAsync(id, ownerRole, ownerId, startsAfter, cancelledAtUtc, cancellationToken);
@@ -92,7 +92,8 @@ internal static class RepositoryHooks
             DateTime newStartsAt,
             DateTime startsAfter,
             DateTime startsNoEarlierThan,
+            ScheduleCheck checkSchedule,
             CancellationToken cancellationToken = default) =>
-            inner.RescheduleAsync(id, patientId, currentStartsAt, newStartsAt, startsAfter, startsNoEarlierThan, cancellationToken);
+            inner.RescheduleAsync(id, patientId, currentStartsAt, newStartsAt, startsAfter, startsNoEarlierThan, checkSchedule, cancellationToken);
     }
 }

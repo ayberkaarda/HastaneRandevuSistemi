@@ -2,6 +2,7 @@ using HastaneRandevu.Business;
 using HastaneRandevu.Business.Security;
 using HastaneRandevu.Business.Services;
 using HastaneRandevu.Domain.Entities;
+using HastaneRandevu.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -27,6 +28,9 @@ internal static class TestServices
         services.AddBusinessServices();
         return services;
     }
+
+    /// <summary>A schedule check for repository calls that skip the service and its schedule rules.</summary>
+    public static readonly ScheduleCheck AnySchedule = static (_, _) => { };
 
     public static UserSession Patient(int id) => new(AccountRole.Patient, id, "Hasta " + id, "***");
 

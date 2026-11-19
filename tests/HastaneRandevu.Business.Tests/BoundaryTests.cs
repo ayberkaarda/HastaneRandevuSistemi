@@ -146,7 +146,7 @@ public sealed class BoundaryTests
     {
         var day90 = LocalNow.Date.AddDays(AppointmentRules.MaxDaysAhead);
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.Setup(a => a.AddAsync(It.Is<Appointment>(x => x.StartsAt == day90.AddHours(16.5)), It.IsAny<CancellationToken>()))
+        _appointments.Setup(a => a.AddAsync(It.Is<Appointment>(x => x.StartsAt == day90.AddHours(16.5)), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1);
 
         await Appointments().BookAsync(Patient(1), 10, day90.AddHours(16.5), Ct);

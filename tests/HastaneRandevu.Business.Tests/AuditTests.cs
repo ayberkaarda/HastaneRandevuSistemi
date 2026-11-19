@@ -142,7 +142,7 @@ public sealed class AuditTests
     public async Task Book_RecordsBookedOrSlotTaken()
     {
         _doctors.Setup(d => d.ExistsAsync(10, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        _appointments.SetupSequence(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<CancellationToken>()))
+        _appointments.SetupSequence(a => a.AddAsync(It.IsAny<Appointment>(), It.IsAny<ScheduleCheck>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(1)
             .ThrowsAsync(new SlotAlreadyBookedException());
         var patient = new UserSession(AccountRole.Patient, 1, "Hasta", "***");

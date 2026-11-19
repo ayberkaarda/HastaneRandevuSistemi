@@ -176,10 +176,10 @@ public sealed class SqliteServiceTests : IAsyncLifetime
     public async Task Repository_SecondInsertForTheSameSlot_IsReportedAsSlotTaken()
     {
         var repository = _db.Get<IAppointmentRepository>();
-        await repository.AddAsync(new Appointment { PatientId = 1, DoctorId = 2, StartsAt = TestServices.Tomorrow10 }, Ct);
+        await repository.AddAsync(new Appointment { PatientId = 1, DoctorId = 2, StartsAt = TestServices.Tomorrow10 }, TestServices.AnySchedule, Ct);
 
         await Assert.ThrowsAsync<SlotAlreadyBookedException>(
-            () => repository.AddAsync(new Appointment { PatientId = 2, DoctorId = 2, StartsAt = TestServices.Tomorrow10 }, Ct));
+            () => repository.AddAsync(new Appointment { PatientId = 2, DoctorId = 2, StartsAt = TestServices.Tomorrow10 }, TestServices.AnySchedule, Ct));
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public sealed class SqliteServiceTests : IAsyncLifetime
     public async Task Repository_Cancel_RepeatsTheOwnerConditionInTheUpdate()
     {
         var repository = _db.Get<IAppointmentRepository>();
-        var id = await repository.AddAsync(new Appointment { PatientId = 1, DoctorId = 1, StartsAt = TestServices.Tomorrow10 }, Ct);
+        var id = await repository.AddAsync(new Appointment { PatientId = 1, DoctorId = 1, StartsAt = TestServices.Tomorrow10 }, TestServices.AnySchedule, Ct);
         var now = TestServices.Start.DateTime;
 
         Assert.False(await repository.CancelAsync(id, AccountRole.Patient, 2, now, now, Ct));

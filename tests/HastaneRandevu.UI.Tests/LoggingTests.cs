@@ -483,7 +483,7 @@ public sealed partial class LoggingTests : IDisposable
         public Task<Appointment?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
             Task.FromResult(_rows.SingleOrDefault(a => a.Id == id));
 
-        public Task<int> AddAsync(Appointment appointment, CancellationToken cancellationToken = default)
+        public Task<int> AddAsync(Appointment appointment, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default)
         {
             if (_rows.Any(a => a.DoctorId == appointment.DoctorId && a.StartsAt == appointment.StartsAt && a.Status == AppointmentStatus.Active))
             {
@@ -495,7 +495,7 @@ public sealed partial class LoggingTests : IDisposable
             return Task.FromResult(appointment.Id);
         }
 
-        public Task<bool> RescheduleAsync(int id, int patientId, DateTime currentStartsAt, DateTime newStartsAt, DateTime startsAfter, DateTime startsNoEarlierThan, CancellationToken cancellationToken = default)
+        public Task<bool> RescheduleAsync(int id, int patientId, DateTime currentStartsAt, DateTime newStartsAt, DateTime startsAfter, DateTime startsNoEarlierThan, ScheduleCheck checkSchedule, CancellationToken cancellationToken = default)
         {
             if (_rows.Any(a => a.DoctorId == 1 && a.StartsAt == newStartsAt && a.Status == AppointmentStatus.Active))
             {

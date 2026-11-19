@@ -128,6 +128,11 @@ internal sealed class ScheduleService(
         return FindConflictsAsync(session.AccountId, cancellationToken);
     }
 
+    /// <summary>
+    /// Runs after the schedule change committed. Bookings and moves check the schedule under the same
+    /// doctor lock as the change, so every appointment written before the change is found here and every
+    /// one written after it was checked against the new schedule.
+    /// </summary>
     private async Task<IReadOnlyList<ScheduleConflict>> FindConflictsAsync(int doctorId, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetLocalNow().DateTime;
