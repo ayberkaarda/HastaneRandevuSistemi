@@ -24,12 +24,12 @@ internal static class ErrorReporter
         // Rule and permission messages are fixed texts written for the user; they are shown as warnings.
         if (exception is BusinessRuleException or AccessDeniedException)
         {
-            MessageBox.Show(owner, exception.Message, "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Dialogs.Show(owner, exception.Message, "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
         Trace.TraceError(FormatForLog(exception));
-        MessageBox.Show(owner, Describe(exception), AppText.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        Dialogs.Show(owner, Describe(exception), AppText.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     /// <summary>

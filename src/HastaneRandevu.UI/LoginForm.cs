@@ -73,7 +73,7 @@ namespace HastaneRandevu.UI
             var session = await SignInAsync();
             if (session is not null)
             {
-                MessageBox.Show(this, "Giriş başarılı! Hoş geldiniz, " + session.DisplayName, AppText.Title);
+                Dialogs.Show(this, "Giriş başarılı! Hoş geldiniz, " + session.DisplayName, AppText.Title);
                 OpenPatientPanel(session);
             }
         }

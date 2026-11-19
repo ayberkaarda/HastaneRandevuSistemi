@@ -24,7 +24,8 @@ namespace HastaneRandevu.UI
             var connectionString = AppConfiguration.ResolveConnectionString(BuildConfiguration());
             if (string.IsNullOrWhiteSpace(connectionString))
             {
-                MessageBox.Show(
+                Dialogs.Show(
+                    null,
                     "Veritabanı bağlantı ayarı bulunamadı.\n\n"
                     + "appsettings.example.json dosyasını appsettings.json olarak kopyalayıp bağlantı bilgisini girin "
                     + "ya da HASTANE_CONNECTION ortam değişkenini tanımlayın.",
