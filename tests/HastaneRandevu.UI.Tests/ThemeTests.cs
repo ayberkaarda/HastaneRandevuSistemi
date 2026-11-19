@@ -250,6 +250,79 @@ public sealed class ThemeTests
         }
     });
 
+    [Fact]
+    public void OpenScreens_RefreshWhenHighContrastChanges() => Run(() =>
+    {
+        var previous = Theme.Current;
+        var previousMode = Theme.Mode;
+        Theme.Initialize(ThemeMode.Light, highContrast: false, systemPrefersDark: false);
+        var highContrast = false;
+        var source = new ManualPreferenceSource();
+        var watcher = new ThemeWatcher(source, ui: null, () => highContrast, () => false);
+        try
+        {
+            using var panel = Support.TestForms.PatientPanel(new Support.ControlledAppointmentService());
+            using var schedule = new CalismaProgramiForm(new Support.ControlledScheduleService(), Support.Sessions.Doctor);
+            _ = panel.Handle;
+            _ = schedule.Handle;
+            var list = Find<ThemedListBox>(panel, "listBoxRandevuGecmisi");
+            var button = Find<ThemedButton>(panel, "buttonRandevuAl");
+            var combo = Find<ThemedComboBox>(panel, "comboBoxBrans");
+            var box = Find<TextBox>(panel, "textBoxDoktorAra");
+            var check = Find<ThemedCheckBox>(schedule, "checkBoxMonday");
+            Assert.Equal(ThemePalette.Light.Surface, list.BackColor);
+            Assert.Equal(FlatStyle.Flat, button.FlatStyle);
+            Assert.Equal(DrawMode.OwnerDrawFixed, combo.DrawMode);
+
+            highContrast = true;
+            source.Raise();
+
+            Assert.True(Theme.Current.IsHighContrast);
+            Assert.Equal(SystemColors.Window, list.BackColor);
+            Assert.Equal(SystemColors.WindowText, list.ForeColor);
+            Assert.Equal(SystemColors.Window, panel.BackColor);
+            Assert.Equal(SystemColors.Window, schedule.BackColor);
+            Assert.Equal(FlatStyle.System, button.FlatStyle);
+            Assert.Equal(DrawMode.Normal, combo.DrawMode);
+            Assert.Equal(BorderStyle.FixedSingle, box.BorderStyle);
+            Assert.False(Paints(check));
+            Assert.Equal((SystemColors.Highlight, SystemColors.HighlightText), ThemedListBox.RowColors(Theme.Current, selected: true, RowTone.Neutral) is var (back, primary, _) ? (back, primary) : default);
+
+            highContrast = false;
+            source.Raise();
+
+            Assert.False(Theme.Current.IsHighContrast);
+            Assert.Equal(ThemePalette.Light.Surface, list.BackColor);
+            Assert.Equal(ThemePalette.Light.Page, panel.BackColor);
+            Assert.Equal(FlatStyle.Flat, button.FlatStyle);
+            Assert.Equal(DrawMode.OwnerDrawFixed, combo.DrawMode);
+            Assert.Equal(BorderStyle.None, box.BorderStyle);
+            Assert.True(Paints(check));
+
+            // Ending the subscription ends the refresh.
+            watcher.Dispose();
+            highContrast = true;
+            source.Raise();
+            Assert.False(Theme.Current.IsHighContrast);
+        }
+        finally
+        {
+            watcher.Dispose();
+            Theme.Initialize(previousMode, highContrast: false, systemPrefersDark: false);
+            Theme.Use(previous);
+        }
+    });
+
+    private static bool Paints(Control control) =>
+        (bool)typeof(Control).GetMethod("GetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(control, [ControlStyles.UserPaint])!;
+
+    private sealed class ManualPreferenceSource : IPreferenceSource
+    {
+        public event EventHandler? Changed;
+
+        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     private static ThemePalette Palette(string name) => name == "Dark" ? ThemePalette.Dark : ThemePalette.Light;
 
     private static double HueDistance(Color first, Color second)

@@ -148,6 +148,8 @@ public sealed class ScheduleFormTests
         });
     });
 
+    private static readonly int[] ConflictHours = [10, 14];
+
     [Fact]
     public void ScheduleConflicts_LongPatientNameKeepsDateAndTimeVisible() => Run(() =>
     {
@@ -160,7 +162,7 @@ public sealed class ScheduleFormTests
         {
             var schedules = new ControlledScheduleService();
             var name = new string('W', 80);
-            foreach (var hour in new[] { 10, 14 })
+            foreach (var hour in ConflictHours)
             {
                 var appointment = Sessions.Appointment(hour) with { PatientName = name, StartsAt = new DateTime(2026, 3, 3, hour, hour == 14 ? 30 : 0, 0) };
                 schedules.Conflicts.Add(new ScheduleConflict(appointment, ScheduleConflictReason.LeaveDay));
