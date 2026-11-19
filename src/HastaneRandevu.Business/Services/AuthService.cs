@@ -1,5 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using FluentValidation;
 using HastaneRandevu.Business.Security;
 using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
@@ -25,23 +25,16 @@ internal sealed class AuthService(
     IAccountRepository accounts,
     IPatientRepository patients,
     IPasswordHasher passwordHasher,
-    TimeProvider timeProvider) : IAuthService
+    TimeProvider timeProvider,
+    IValidator<RegistrationInput> registrationValidator,
+    IValidator<PatientSignInInput> patientSignInValidator,
+    IValidator<DoctorSignInInput> doctorSignInValidator) : IAuthService
 {
-    internal const int FullNameMaxLength = 80;
-
-    internal const string PatientInputRequired = "Lütfen geçerli TC ve şifre giriniz.";
-    internal const string DoctorInputRequired = "Lütfen tüm alanları doldurun.";
-
     // A locked account gets the same answer as wrong credentials, so the lock state is not disclosed
     // before the user has proven who they are; the lockout rule itself is stated for everyone.
     internal static readonly string PatientCredentialsInvalid = "TC veya şifre hatalı. " + LockoutNotice;
     internal static readonly string DoctorCredentialsInvalid = "Doktor adı veya şifre hatalı. " + LockoutNotice;
-    internal const string FullNameInvalid = "Ad soyad boş bırakılamaz ve en fazla 80 karakter olabilir.";
-    internal const string NationalIdInvalid = "Lütfen geçerli bir T.C. Kimlik No giriniz.";
     internal const string NationalIdTaken = "Bu T.C. Kimlik No ile kayıtlı bir hasta zaten var.";
-    internal static readonly string PasswordInvalid = string.Create(
-        CultureInfo.InvariantCulture,
-        $"Şifre en az {PasswordPolicy.MinLength}, en fazla {PasswordPolicy.MaxLength} karakter olmalıdır.");
 
     private static string LockoutNotice => string.Create(
         CultureInfo.InvariantCulture,
@@ -52,14 +45,11 @@ internal sealed class AuthService(
         string? password,
         CancellationToken cancellationToken = default)
     {
-        var id = nationalId?.Trim();
-        if (!NationalIdNumber.HasValidFormat(id) || !IsAcceptableSignInPassword(password))
-        {
-            throw new BusinessRuleException(PatientInputRequired);
-        }
+        var input = PatientSignInInput.Create(nationalId, password);
+        patientSignInValidator.ValidateOrThrow(input);
 
-        var account = await accounts.FindPatientByNationalIdAsync(id!, cancellationToken).ConfigureAwait(false);
-        return await SignInAsync(AccountRole.Patient, account, password, PatientCredentialsInvalid, cancellationToken)
+        var account = await accounts.FindPatientByNationalIdAsync(input.NationalId, cancellationToken).ConfigureAwait(false);
+        return await SignInAsync(AccountRole.Patient, account, input.Password!, PatientCredentialsInvalid, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -68,14 +58,11 @@ internal sealed class AuthService(
         string? password,
         CancellationToken cancellationToken = default)
     {
-        var name = fullName?.Trim();
-        if (string.IsNullOrEmpty(name) || !IsAcceptableSignInPassword(password))
-        {
-            throw new BusinessRuleException(DoctorInputRequired);
-        }
+        var input = DoctorSignInInput.Create(fullName, password);
+        doctorSignInValidator.ValidateOrThrow(input);
 
-        var account = await accounts.FindDoctorByNameAsync(name, cancellationToken).ConfigureAwait(false);
-        return await SignInAsync(AccountRole.Doctor, account, password, DoctorCredentialsInvalid, cancellationToken)
+        var account = await accounts.FindDoctorByNameAsync(input.FullName, cancellationToken).ConfigureAwait(false);
+        return await SignInAsync(AccountRole.Doctor, account, input.Password!, DoctorCredentialsInvalid, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -85,34 +72,19 @@ internal sealed class AuthService(
         string? password,
         CancellationToken cancellationToken = default)
     {
-        var name = fullName?.Trim();
-        var id = nationalId?.Trim();
+        var input = RegistrationInput.Create(fullName, nationalId, password);
+        registrationValidator.ValidateOrThrow(input);
 
-        if (string.IsNullOrEmpty(name) || name.Length > FullNameMaxLength)
-        {
-            throw new BusinessRuleException(FullNameInvalid);
-        }
-
-        if (!NationalIdNumber.IsValid(id))
-        {
-            throw new BusinessRuleException(NationalIdInvalid);
-        }
-
-        if (password is null || password.Length < PasswordPolicy.MinLength || password.Length > PasswordPolicy.MaxLength)
-        {
-            throw new BusinessRuleException(PasswordInvalid);
-        }
-
-        if (await patients.NationalIdExistsAsync(id!, cancellationToken).ConfigureAwait(false))
+        if (await patients.NationalIdExistsAsync(input.NationalId, cancellationToken).ConfigureAwait(false))
         {
             throw new BusinessRuleException(NationalIdTaken);
         }
 
         var patient = new Patient
         {
-            FullName = name,
-            NationalId = id!,
-            PasswordHash = passwordHasher.Hash(password),
+            FullName = input.FullName,
+            NationalId = input.NationalId,
+            PasswordHash = passwordHasher.Hash(input.Password!),
             PasswordFormat = PasswordFormat.Pbkdf2,
         };
 
@@ -126,13 +98,6 @@ internal sealed class AuthService(
             throw new BusinessRuleException(NationalIdTaken, ex);
         }
     }
-
-    /// <summary>
-    /// Sign-in only bounds the input by what an existing account can hold; the registration rules of
-    /// <see cref="PasswordPolicy"/> apply to new passwords and would lock out legacy accounts here.
-    /// </summary>
-    private static bool IsAcceptableSignInPassword([NotNullWhen(true)] string? password) =>
-        !string.IsNullOrEmpty(password) && password.Length <= PasswordPolicy.SignInMaxLength;
 
     private async Task<UserSession> SignInAsync(
         AccountRole role,

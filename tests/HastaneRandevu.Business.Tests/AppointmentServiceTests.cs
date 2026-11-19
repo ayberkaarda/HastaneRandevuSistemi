@@ -1,4 +1,5 @@
 using HastaneRandevu.Business.Services;
+using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
 using Microsoft.Extensions.Time.Testing;
@@ -59,9 +60,9 @@ public sealed class AppointmentServiceTests
 
         var expected = rule switch
         {
-            "past" => AppointmentService.PastSlot,
-            "slot" => AppointmentService.InvalidSlot,
-            _ => AppointmentService.TooFarAhead,
+            "past" => ValidationMessages.PastSlot,
+            "slot" => ValidationMessages.InvalidSlot,
+            _ => ValidationMessages.TooFarAhead,
         };
         Assert.Equal(expected, error.Message);
         _appointments.VerifyNoOtherCalls();
@@ -92,7 +93,7 @@ public sealed class AppointmentServiceTests
 
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().BookAsync(PatientA, 42, NextSlot, Ct));
 
-        Assert.Equal(AppointmentService.DoctorRequired, error.Message);
+        Assert.Equal(ValidationMessages.DoctorRequired, error.Message);
         _appointments.VerifyNoOtherCalls();
     }
 
@@ -241,7 +242,7 @@ public sealed class AppointmentServiceTests
 
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().CancelAsync(PatientA, 5, Ct));
 
-        Assert.Equal(AppointmentService.StartedCannotCancel, error.Message);
+        Assert.Equal(ValidationMessages.StartedCannotCancel, error.Message);
     }
 
     [Fact]
@@ -251,7 +252,7 @@ public sealed class AppointmentServiceTests
 
         var error = await Assert.ThrowsAsync<BusinessRuleException>(() => Service().CancelAsync(PatientA, 5, Ct));
 
-        Assert.Equal(AppointmentService.AlreadyCancelled, error.Message);
+        Assert.Equal(ValidationMessages.AlreadyCancelled, error.Message);
     }
 
     [Fact]
@@ -283,5 +284,5 @@ public sealed class AppointmentServiceTests
     private void SetupAppointment(Appointment appointment) =>
         _appointments.Setup(a => a.GetByIdAsync(appointment.Id, It.IsAny<CancellationToken>())).ReturnsAsync(appointment);
 
-    private AppointmentService Service() => new(_appointments.Object, _doctors.Object, _time);
+    private AppointmentService Service() => ServiceFactory.Appointments(_appointments.Object, _doctors.Object, _time);
 }

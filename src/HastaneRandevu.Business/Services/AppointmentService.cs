@@ -1,3 +1,5 @@
+using FluentValidation;
+using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
 
@@ -32,15 +34,11 @@ public interface IAppointmentService
 internal sealed class AppointmentService(
     IAppointmentRepository appointments,
     IDoctorRepository doctors,
-    TimeProvider timeProvider) : IAppointmentService
+    TimeProvider timeProvider,
+    IValidator<BookingInput> bookingValidator,
+    IValidator<CancellationInput> cancellationValidator) : IAppointmentService
 {
-    internal const string DoctorRequired = "Lütfen bir doktor seçiniz.";
-    internal const string InvalidSlot = "Lütfen çalışma saatleri içinde geçerli bir randevu saati seçiniz.";
-    internal const string PastSlot = "Geçmiş bir tarih veya saat için randevu alınamaz.";
-    internal const string TooFarAhead = "Randevu en fazla 90 gün sonrası için alınabilir.";
     internal const string SlotTaken = "Bu randevu saatinde doktor zaten dolu. Lütfen başka bir zaman seçin.";
-    internal const string AlreadyCancelled = "Bu randevu zaten iptal edilmiş.";
-    internal const string StartedCannotCancel = "Geçmiş veya başlamış bir randevu iptal edilemez.";
     internal const string CancelFailed = "Randevu iptal edilemedi.";
 
     public Task<IReadOnlyList<DoctorSummary>> GetDoctorsAsync(UserSession session, CancellationToken cancellationToken = default)
@@ -92,31 +90,11 @@ internal sealed class AppointmentService(
         CancellationToken cancellationToken = default)
     {
         RequirePatient(session);
-
-        if (doctorId <= 0)
-        {
-            throw new BusinessRuleException(DoctorRequired);
-        }
-
-        if (!AppointmentRules.IsSlotStart(startsAt))
-        {
-            throw new BusinessRuleException(InvalidSlot);
-        }
-
-        var now = LocalNow();
-        if (startsAt <= now)
-        {
-            throw new BusinessRuleException(PastSlot);
-        }
-
-        if (startsAt.Date > now.Date.AddDays(AppointmentRules.MaxDaysAhead))
-        {
-            throw new BusinessRuleException(TooFarAhead);
-        }
+        bookingValidator.ValidateOrThrow(new BookingInput(doctorId, startsAt, LocalNow()));
 
         if (!await doctors.ExistsAsync(doctorId, cancellationToken).ConfigureAwait(false))
         {
-            throw new BusinessRuleException(DoctorRequired);
+            throw new BusinessRuleException(ValidationMessages.DoctorRequired);
         }
 
         var appointment = new Appointment
@@ -149,16 +127,8 @@ internal sealed class AppointmentService(
             throw new AccessDeniedException();
         }
 
-        if (appointment.Status == AppointmentStatus.Cancelled)
-        {
-            throw new BusinessRuleException(AlreadyCancelled);
-        }
-
         var now = LocalNow();
-        if (appointment.StartsAt <= now)
-        {
-            throw new BusinessRuleException(StartedCannotCancel);
-        }
+        cancellationValidator.ValidateOrThrow(new CancellationInput(appointment.Status, appointment.StartsAt, now));
 
         // The repository repeats the ownership, status and time conditions in the same statement, so a
         // concurrent change between the read above and this update cannot slip through.
