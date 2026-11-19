@@ -38,7 +38,92 @@ public sealed partial class LoggingTests : IDisposable
         var file = Assert.Single(Directory.GetFiles(_directory));
         Assert.Matches(@"hastanerandevu-\d{8}\.log$", file);
         Assert.Contains("probe", File.ReadAllText(file), StringComparison.Ordinal);
+    }
+
+    /// <summary>Files dated before the last 30 days are deleted when the logger opens today's file.</summary>
+    [Fact]
+    public void Retention_DeletesFilesOlderThanThirtyDaysAndKeepsRecentOnes()
+    {
+        int[] ages = [1, 2, 15, 29, 30, 31, 45, 60, 400];
+        Directory.CreateDirectory(_directory);
+        foreach (var age in ages)
+        {
+            File.WriteAllText(DatedFile(age), "old");
+        }
+
+        var unrelated = Path.Combine(_directory, "notes.txt");
+        File.WriteAllText(unrelated, "not a log file");
+
+        using (var logger = AppLogging.CreateLogger(_directory))
+        {
+            logger.Information("probe");
+        }
+
         Assert.Equal(30, AppLogging.RetainedDays);
+        Assert.All(ages.Where(a => a < 30), age => Assert.True(File.Exists(DatedFile(age)), $"The file of {age} days ago was deleted."));
+        Assert.All(ages.Where(a => a >= 30), age => Assert.False(File.Exists(DatedFile(age)), $"The file of {age} days ago was kept."));
+        Assert.True(File.Exists(DatedFile(0)));
+        Assert.True(File.Exists(unrelated));
+    }
+
+    /// <summary>
+    /// More than 30 recent files (several per day, as size or restart sequences produce) are cut to the
+    /// newest 30, today's file included.
+    /// </summary>
+    [Fact]
+    public void Retention_KeepsAtMostThirtyFilesNewestFirst()
+    {
+        Directory.CreateDirectory(_directory);
+        var created = new List<string>();
+        for (var age = 1; age <= 10; age++)
+        {
+            created.Add(DatedFile(age));
+            for (var sequence = 1; sequence <= 3; sequence++)
+            {
+                created.Add(DatedFile(age, sequence));
+            }
+        }
+
+        foreach (var file in created)
+        {
+            File.WriteAllText(file, "old");
+        }
+
+        using (var logger = AppLogging.CreateLogger(_directory))
+        {
+            logger.Information("probe");
+        }
+
+        // Newest first: day 1 sequence 3, 2, 1, base, then day 2 and so on.
+        var newestFirst = created
+            .OrderBy(AgeOf)
+            .ThenByDescending(SequenceOf)
+            .ToList();
+        var remaining = Directory.GetFiles(_directory, "hastanerandevu-*.log");
+        Assert.Equal(AppLogging.RetainedFileCount, remaining.Length);
+        Assert.Equal(30, AppLogging.RetainedFileCount);
+        Assert.All(newestFirst.Take(AppLogging.RetainedFileCount - 1), f => Assert.True(File.Exists(f), Path.GetFileName(f) + " was deleted."));
+        Assert.All(newestFirst.Skip(AppLogging.RetainedFileCount - 1), f => Assert.False(File.Exists(f), Path.GetFileName(f) + " was kept."));
+    }
+
+    private string DatedFile(int age, int sequence = 0)
+    {
+        var day = DateTime.Today.AddDays(-age).ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+        var suffix = sequence == 0 ? string.Empty : "_" + sequence.ToString("000", System.Globalization.CultureInfo.InvariantCulture);
+        return Path.Combine(_directory, $"hastanerandevu-{day}{suffix}.log");
+    }
+
+    private static int AgeOf(string file)
+    {
+        var day = DateTime.ParseExact(Path.GetFileName(file).Substring(15, 8), "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);
+        return (DateTime.Today - day).Days;
+    }
+
+    private static int SequenceOf(string file)
+    {
+        var name = Path.GetFileNameWithoutExtension(file);
+        var underscore = name.LastIndexOf('_');
+        return underscore < 0 ? 0 : int.Parse(name[(underscore + 1)..], System.Globalization.CultureInfo.InvariantCulture);
     }
 
     [Fact]

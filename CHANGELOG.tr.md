@@ -9,7 +9,8 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
-- `%LOCALAPPDATA%\HastaneRandevu\logs` altında Serilog ile günlük dönen dosya günlükleri (son 30 dosya saklanır).
+- `%LOCALAPPDATA%\HastaneRandevu\logs` altında Serilog ile günlük dönen dosya günlükleri (30 günden eski
+  dosyalar silinir, en fazla 30 dosya saklanır; testler bunu tarihli dosyalarla doğrular).
   T.C. kimlik numaraları, adlar, şifreler, randevu ayrıntıları ve istisna mesajları hiçbir zaman günlüğe yazılmaz.
 - Giriş, şifre yükseltme, kayıt, randevu alma, iptal ve reddedilen erişim için anonim denetim kayıtları:
   yalnızca sabit bir kod ve rol, örneğin `Audit auth.sign_in.failed patient`.

@@ -204,8 +204,8 @@ The design-time factory reads `HASTANE_CONNECTION` and otherwise uses a local SQ
 
 ### 6. Logs
 
-Logs are written to `%LOCALAPPDATA%\HastaneRandevu\logs\hastanerandevu-YYYYMMDD.log`, one file per day, and the
-last 30 files are kept. The folder is outside the repository. Error entries contain only exception types, HResult
+Logs are written to `%LOCALAPPDATA%\HastaneRandevu\logs\hastanerandevu-YYYYMMDD.log`, one file per day. Files
+older than 30 days are deleted, and at most 30 files are kept. The folder is outside the repository. Error entries contain only exception types, HResult
 codes and the method names of the stack trace (no file paths); refused operations log only the exception type.
 Audit entries are a fixed code and a role, for example:
 

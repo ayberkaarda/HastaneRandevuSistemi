@@ -204,7 +204,7 @@ Tasarım zamanı fabrikası `HASTANE_CONNECTION` değişkenini okur, yoksa yerel
 ### 6. Günlükler
 
 Günlükler `%LOCALAPPDATA%\HastaneRandevu\logs\hastanerandevu-YYYYMMDD.log` dosyalarına, her gün için bir dosya
-olarak yazılır ve son 30 dosya saklanır. Klasör deponun dışındadır. Hata kayıtları yalnızca istisna türlerini,
+olarak yazılır; 30 günden eski dosyalar silinir ve en fazla 30 dosya saklanır. Klasör deponun dışındadır. Hata kayıtları yalnızca istisna türlerini,
 HResult kodlarını ve yığın izindeki metot adlarını içerir (dosya yolu yok); reddedilen işlemler yalnızca istisna
 türünü yazar. Denetim kayıtları sabit bir kod ve rolden oluşur, örneğin:
 

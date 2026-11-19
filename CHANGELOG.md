@@ -9,7 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Daily rolling file logs with Serilog under `%LOCALAPPDATA%\HastaneRandevu\logs` (last 30 files kept).
+- Daily rolling file logs with Serilog under `%LOCALAPPDATA%\HastaneRandevu\logs` (files older than
+  30 days are deleted, at most 30 files are kept; tests check this with dated files).
   National ids, names, passwords, appointment details and exception messages are never logged.
 - Anonymous audit entries for sign-in, password upgrade, registration, booking, cancellation and refused
   access: a fixed code and a role only, for example `Audit auth.sign_in.failed patient`.
