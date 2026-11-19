@@ -31,6 +31,7 @@ internal static class UiExtensions
     /// <summary>
     /// Like <see cref="RunAsync"/>, but through <paramref name="operation"/>: while a run is pending a
     /// new call is ignored and <paramref name="controls"/> stay disabled, so a write cannot be started twice.
+    /// A run that starts clears the previous inline message of the screen.
     /// </summary>
     public static Task<bool> RunExclusiveAsync(
         this Form form,
@@ -42,7 +43,13 @@ internal static class UiExtensions
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(action);
 
-        return operation.RunAsync(() => form.RunAsync(action), controls);
+        return operation.RunAsync(
+            () =>
+            {
+                (form as IStatusSurface)?.ClearStatus();
+                return form.RunAsync(action);
+            },
+            controls);
     }
 
     /// <summary>Lets only digits (and editing keys) be typed, for national id fields.</summary>
