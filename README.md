@@ -228,8 +228,10 @@ Patients register themselves; the application has no screen for adding doctors, 
 inserted into `Doktorlar` by the operator (with a PBKDF2 hash, `SifreBicimi = 0`).
 
 Demo mode is off unless it is switched on explicitly, with the environment variable `HASTANE_DEMO=1` or the
-setting `"Seed": { "Demo": true }`. Only then are these fictional accounts added on start (synthetic national ids
-that only pass the checksum; existing rows are never changed):
+setting `"Seed": { "Demo": true }`. Only then, and only when the database has no patient, doctor or appointment
+yet, are these fictional accounts added on start (synthetic national ids that only pass the checksum). A database
+with any data gets no demo account at all: the start skips the demo accounts and writes a warning to the log.
+The emptiness check and all inserts run in one transaction, so a failed start leaves no demo account behind:
 
 | Role | Sign-in (demo mode only) | Password (demo mode only) |
 |---|---|---|

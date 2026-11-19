@@ -302,6 +302,71 @@ public sealed class LegacyUpgradeTests
         await AssertUpgradedSchemaAsync(database, ct);
     }
 
+    /// <summary>Several application instances start in demo mode on the same empty database at once.</summary>
+    [Fact]
+    public async Task Initialize_ConcurrentDemoStartsOnAnEmptyDatabase_SeedOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+        await using (var schema = database.BuildServices(demo: false))
+        {
+            await schema.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        }
+
+        var instances = Enumerable.Range(0, 6).Select(_ => database.BuildServices(demo: true)).ToList();
+        try
+        {
+            using var start = new ManualResetEventSlim(false);
+            var starts = instances
+                .Select(i => Task.Run(
+                    async () =>
+                    {
+                        start.Wait(ct);
+                        return await i.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+                    },
+                    ct))
+                .ToList();
+            start.Set();
+            var outcomes = await Task.WhenAll(starts);
+
+            Assert.Equal(1, outcomes.Count(o => o == DemoSeedOutcome.Seeded));
+            Assert.All(outcomes.Where(o => o != DemoSeedOutcome.Seeded), o => Assert.Equal(DemoSeedOutcome.SkippedExistingData, o));
+            Assert.Equal(3, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
+            Assert.Equal(2, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
+        }
+        finally
+        {
+            foreach (var instance in instances)
+            {
+                await instance.DisposeAsync();
+            }
+        }
+    }
+
+    /// <summary>A database with an account of its own gets no demo account, also on SQL Server.</summary>
+    [Fact]
+    public async Task Initialize_DemoEnabled_NonEmptyDatabaseAddsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var database = await SqlServerTestDatabase.ReserveAsync(ct);
+        await using (var schema = database.BuildServices(demo: false))
+        {
+            await schema.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct);
+        }
+
+        await database.ExecuteAsync(
+            "INSERT dbo.Doktorlar (Ad_Soyad, Brans, TC, Sifre, SifreBicimi, BasarisizGiris) VALUES (N'Dr. Var Olan', N'Dahiliye', N'30000000001', N'-', 0, 0)",
+            ct);
+
+        await using var provider = database.BuildServices(demo: true);
+        Assert.Equal(DemoSeedOutcome.SkippedExistingData, await provider.GetRequiredService<IDatabaseInitializer>().InitializeAsync(ct));
+
+        Assert.Equal(1, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Doktorlar", ct));
+        Assert.Equal(0, await database.ScalarAsync("SELECT COUNT(*) FROM dbo.Hastalar", ct));
+        await Assert.ThrowsAsync<BusinessRuleException>(
+            () => provider.GetRequiredService<IAuthService>().SignInDoctorAsync("Dr. Ada Örnek", "Demo.Doktor1", ct));
+    }
+
     /// <summary>
     /// Restores a backup of the original application's database (path in HASTANE_LEGACY_BACKUP,
     /// readable by the SQL Server service) and upgrades it. Only counts, identities and checksums are

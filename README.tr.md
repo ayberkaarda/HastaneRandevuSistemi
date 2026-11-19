@@ -226,8 +226,10 @@ Varsayılan olarak veritabanı boş oluşturulur: migration'lar hiçbir hesap ol
 işletmeci `Doktorlar` tablosuna ekler (PBKDF2 hash'i ile, `SifreBicimi = 0`).
 
 Demo modu, açıkça açılmadıkça kapalıdır: `HASTANE_DEMO=1` ortam değişkeni veya `"Seed": { "Demo": true }`
-ayarıyla açılır. Yalnızca o zaman açılışta şu kurgusal hesaplar eklenir (yalnızca sağlama algoritmasını geçen
-yapay T.C. Kimlik No'lar; mevcut satırlar hiçbir zaman değiştirilmez):
+ayarıyla açılır. Yalnızca o zaman ve yalnızca veritabanında henüz hiç hasta, doktor veya randevu yoksa açılışta
+şu kurgusal hesaplar eklenir (yalnızca sağlama algoritmasını geçen yapay T.C. Kimlik No'lar). Herhangi bir veri
+içeren veritabanına hiçbir demo hesabı eklenmez: açılış demo hesaplarını atlar ve günlüğe bir uyarı yazar. Boşluk
+denetimi ve bütün eklemeler tek bir transaction içinde yapılır; yarıda kalan bir açılış hiçbir demo hesabı bırakmaz:
 
 | Rol | Giriş (yalnızca demo modunda) | Şifre (yalnızca demo modunda) |
 |---|---|---|

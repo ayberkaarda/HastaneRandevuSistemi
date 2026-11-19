@@ -83,7 +83,7 @@ namespace HastaneRandevu.UI
             var demo = new DemoDataOptions { Enabled = AppConfiguration.ResolveDemoMode(configuration) };
             if (demo.Enabled)
             {
-                Log.Warning("Demo mode is on: demo accounts with published passwords are created");
+                Log.Warning("Demo mode is on: demo accounts with published passwords are added to an empty database");
             }
 
             using var serviceProvider = ConfigureServices(connectionString, demo, policy);
@@ -91,7 +91,15 @@ namespace HastaneRandevu.UI
             try
             {
                 // No synchronization context exists yet, so blocking here cannot deadlock.
-                serviceProvider.GetRequiredService<IDatabaseInitializer>().InitializeAsync().GetAwaiter().GetResult();
+                var outcome = serviceProvider.GetRequiredService<IDatabaseInitializer>().InitializeAsync().GetAwaiter().GetResult();
+                if (outcome == DemoSeedOutcome.SkippedExistingData)
+                {
+                    Log.Warning("Demo mode is on but the database already has data; no demo account was added");
+                }
+                else if (outcome == DemoSeedOutcome.Seeded)
+                {
+                    Log.Warning("Demo accounts were added to the empty database");
+                }
             }
 #pragma warning disable CA1031 // Startup boundary: report and exit instead of crashing.
             catch (Exception ex)

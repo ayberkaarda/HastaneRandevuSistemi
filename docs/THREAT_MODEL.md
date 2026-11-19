@@ -29,7 +29,8 @@ special category of personal data. This document lists technical measures only; 
   security of the server, its logins and its backups.
 - A new database contains no account by default. Demo accounts (fictional, synthetic national ids that only
   pass the checksum, passwords published in the README) are created only when demo mode is switched on
-  explicitly with `HASTANE_DEMO=1` or `Seed:Demo=true`; demo mode is never used with real data.
+  explicitly with `HASTANE_DEMO=1` or `Seed:Demo=true`, and only in a database without any patient, doctor or
+  appointment (checked and inserted in one transaction); demo mode is never used with real data.
 
 ## Threats and mitigations
 

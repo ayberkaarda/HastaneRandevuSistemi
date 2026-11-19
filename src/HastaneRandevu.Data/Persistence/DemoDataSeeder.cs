@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace HastaneRandevu.Data.Persistence;
@@ -12,34 +13,45 @@ public sealed class DemoDataOptions
     public bool Enabled { get; init; }
 }
 
+/// <summary>What demo mode did when the database was initialized.</summary>
+public enum DemoSeedOutcome
+{
+    /// <summary>Demo mode is off; nothing was added.</summary>
+    Disabled,
+
+    /// <summary>The database was empty and all demo accounts were added.</summary>
+    Seeded,
+
+    /// <summary>The database already had patients, doctors or appointments; nothing was added.</summary>
+    SkippedExistingData,
+}
+
 internal static class DemoDataSeeder
 {
+    private const string LockResource = "HastaneRandevu.DemoSeed";
+    private const int LockTimeoutMilliseconds = 60_000;
+
     /// <summary>
-    /// Adds the demo doctors and patients that are missing, matched by national id, so it can run on every
-    /// start. Existing rows are never changed. Rows are inserted in a fixed order, so a new database gets
-    /// the same ids every time (doctors 1-3, patients 1-2).
+    /// Adds every demo doctor and patient, but only to a database without any patient, doctor or
+    /// appointment; otherwise nothing is added, so demo accounts with published passwords never end up
+    /// next to existing accounts. The emptiness check and all inserts run in one serializable
+    /// transaction under an application lock: concurrent starts add the accounts once, and a failure or
+    /// cancellation part way leaves no account behind. Rows are inserted one by one in a fixed order,
+    /// so a new database gets the same ids every time (doctors 1-3, patients 1-2).
     /// </summary>
-    public static async Task SeedAsync(HospitalDbContext db, CancellationToken cancellationToken)
+    public static async Task<DemoSeedOutcome> SeedAsync(HospitalDbContext db, CancellationToken cancellationToken)
     {
-        var doctorIds = DemoData.Doctors.Select(d => d.NationalId).ToList();
-        var doctorNames = DemoData.Doctors.Select(d => d.FullName).ToList();
-        var patientIds = DemoData.Patients.Select(p => p.NationalId).ToList();
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken).ConfigureAwait(false);
+        await AppLock.AcquireAsync(db, LockResource, LockTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
 
-        // Doctors are unique by national id and by name; a clash on either means the doctor exists.
-        var clashing = await db.Doctors
-            .Where(d => doctorIds.Contains(d.NationalId) || doctorNames.Contains(d.FullName))
-            .Select(d => new { d.NationalId, d.FullName })
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-        var existingDoctors = DemoData.Doctors
-            .Where(d => clashing.Any(c => c.NationalId == d.NationalId || c.FullName == d.FullName))
-            .Select(d => d.NationalId)
-            .ToList();
-        var existingPatients = await db.Patients
-            .Where(p => patientIds.Contains(p.NationalId))
-            .Select(p => p.NationalId)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (await db.Patients.AnyAsync(cancellationToken).ConfigureAwait(false)
+            || await db.Doctors.AnyAsync(cancellationToken).ConfigureAwait(false)
+            || await db.Appointments.AnyAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return DemoSeedOutcome.SkippedExistingData;
+        }
 
-        foreach (var doctor in DemoData.Doctors.Where(d => !existingDoctors.Contains(d.NationalId)))
+        foreach (var doctor in DemoData.Doctors)
         {
             db.Doctors.Add(new()
             {
@@ -52,7 +64,7 @@ internal static class DemoDataSeeder
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        foreach (var patient in DemoData.Patients.Where(p => !existingPatients.Contains(p.NationalId)))
+        foreach (var patient in DemoData.Patients)
         {
             db.Patients.Add(new()
             {
@@ -63,5 +75,8 @@ internal static class DemoDataSeeder
             });
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return DemoSeedOutcome.Seeded;
     }
 }
