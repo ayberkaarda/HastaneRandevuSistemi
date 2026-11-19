@@ -179,11 +179,41 @@ public abstract class AppDialog : Form, IStatusSurface
     {
         base.OnHandleCreated(e);
 
+        // An open window follows a change of the Windows contrast or app mode; the link ends with the window.
+        Theme.Changed -= OnThemeChanged;
+        Theme.Changed += OnThemeChanged;
+
         // Measured once the window exists, so the real fonts and metrics decide how the content lays out.
         if (!_sizeFitted)
         {
             _sizeFitted = true;
             FitSizeToContent();
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        Theme.Changed -= OnThemeChanged;
+        base.OnHandleDestroyed(e);
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Theme.Changed -= OnThemeChanged;
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void OnThemeChanged(ThemePalette old)
+    {
+        if (!IsDisposed)
+        {
+            ThemeRefresher.Refresh(this, old);
         }
     }
 

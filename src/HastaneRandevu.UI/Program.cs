@@ -113,6 +113,13 @@ namespace HastaneRandevu.UI
             }
 
             var formFactory = serviceProvider.GetRequiredService<IFormFactory>();
+
+            // While the application runs, Windows may switch high contrast or the app mode; open screens follow.
+            using var themeWatcher = new ThemeWatcher(
+                new SystemPreferenceSource(),
+                new WindowsFormsSynchronizationContext(),
+                () => SystemInformation.HighContrast,
+                Theme.SystemPrefersDark);
             Application.Run(formFactory.Create<LoginForm>());
         }
 
