@@ -72,6 +72,8 @@ public sealed class SqliteScheduleTests : IAsyncLifetime
     [Fact]
     public async Task Doctor_CannotChangeAnotherDoctorsSchedule()
     {
+        await Schedules.SaveWorkingDaysAsync(TestServices.Doctor(3), [new WorkingDay(DayOfWeek.Friday, TimeSpan.FromHours(8), TimeSpan.FromHours(9))], Ct);
+        await Schedules.AddLeaveDayAsync(TestServices.Doctor(3), DateOnly.FromDateTime(Tuesday), Ct);
         await Schedules.SaveWorkingDaysAsync(TestServices.Doctor(2), [new WorkingDay(DayOfWeek.Monday, TimeSpan.FromHours(8), TimeSpan.FromHours(9))], Ct);
         await Schedules.AddLeaveDayAsync(TestServices.Doctor(2), DateOnly.FromDateTime(Tuesday), Ct);
 
@@ -79,8 +81,10 @@ public sealed class SqliteScheduleTests : IAsyncLifetime
         await Assert.ThrowsAsync<BusinessRuleException>(() => Schedules.RemoveLeaveDayAsync(TestServices.Doctor(1), DateOnly.FromDateTime(Tuesday), Ct));
 
         await using var context = _db.CreateContext();
-        Assert.Equal([2], await context.WorkingHours.Select(h => h.DoctorId).Distinct().ToListAsync(Ct));
-        Assert.Equal([2], await context.LeaveDays.Select(l => l.DoctorId).ToListAsync(Ct));
+        Assert.Equal([2, 3], await context.WorkingHours.Select(h => h.DoctorId).Distinct().OrderBy(id => id).ToListAsync(Ct));
+        Assert.Equal([2, 3], await context.LeaveDays.Select(l => l.DoctorId).OrderBy(id => id).ToListAsync(Ct));
+        var doctor3 = await Schedules.GetMyScheduleAsync(TestServices.Doctor(3), Ct);
+        Assert.Equal(DayOfWeek.Friday, Assert.Single(doctor3.WorkingDays).Day);
         Assert.True((await Schedules.GetMyScheduleAsync(TestServices.Doctor(1), Ct)).UsesDefaultHours);
         Assert.Equal(16, (await Appointments.GetAvailableSlotsAsync(TestServices.Patient(1), 1, Tuesday, Ct)).Count);
     }
