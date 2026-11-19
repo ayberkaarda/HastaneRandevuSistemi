@@ -1,4 +1,5 @@
 using FluentValidation;
+using HastaneRandevu.Business.Auditing;
 using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.Domain.Repositories;
@@ -36,7 +37,8 @@ internal sealed class AppointmentService(
     IDoctorRepository doctors,
     TimeProvider timeProvider,
     IValidator<BookingInput> bookingValidator,
-    IValidator<CancellationInput> cancellationValidator) : IAppointmentService
+    IValidator<CancellationInput> cancellationValidator,
+    IAuditLog audit) : IAppointmentService
 {
     internal const string SlotTaken = "Bu randevu saatinde doktor zaten dolu. Lütfen başka bir zaman seçin.";
     internal const string CancelFailed = "Randevu iptal edilemedi.";
@@ -105,14 +107,19 @@ internal sealed class AppointmentService(
             Status = AppointmentStatus.Active,
         };
 
+        int id;
         try
         {
-            return await appointments.AddAsync(appointment, cancellationToken).ConfigureAwait(false);
+            id = await appointments.AddAsync(appointment, cancellationToken).ConfigureAwait(false);
         }
         catch (SlotAlreadyBookedException ex)
         {
+            audit.Record(AuditEvent.AppointmentSlotTaken, session.Role);
             throw new BusinessRuleException(SlotTaken, ex);
         }
+
+        audit.Record(AuditEvent.AppointmentBooked, session.Role);
+        return id;
     }
 
     public async Task CancelAsync(UserSession session, int appointmentId, CancellationToken cancellationToken = default)
@@ -124,6 +131,7 @@ internal sealed class AppointmentService(
         // A missing appointment and somebody else's appointment get the same answer, so ids cannot be probed.
         if (appointment is null || !IsOwnedBy(appointment, session))
         {
+            audit.Record(AuditEvent.AccessDenied, session.Role);
             throw new AccessDeniedException();
         }
 
@@ -143,6 +151,8 @@ internal sealed class AppointmentService(
         {
             throw new BusinessRuleException(CancelFailed);
         }
+
+        audit.Record(AuditEvent.AppointmentCancelled, session.Role);
     }
 
     private static bool IsOwnedBy(Appointment appointment, UserSession session) => session.Role switch
@@ -152,11 +162,12 @@ internal sealed class AppointmentService(
         _ => false,
     };
 
-    private static void RequirePatient(UserSession session)
+    private void RequirePatient(UserSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
         if (session.Role != AccountRole.Patient)
         {
+            audit.Record(AuditEvent.AccessDenied, session.Role);
             throw new AccessDeniedException();
         }
     }

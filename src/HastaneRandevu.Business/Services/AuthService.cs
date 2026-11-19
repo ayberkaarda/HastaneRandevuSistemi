@@ -1,5 +1,6 @@
 using System.Globalization;
 using FluentValidation;
+using HastaneRandevu.Business.Auditing;
 using HastaneRandevu.Business.Security;
 using HastaneRandevu.Business.Validation;
 using HastaneRandevu.Domain.Entities;
@@ -28,7 +29,8 @@ internal sealed class AuthService(
     TimeProvider timeProvider,
     IValidator<RegistrationInput> registrationValidator,
     IValidator<PatientSignInInput> patientSignInValidator,
-    IValidator<DoctorSignInInput> doctorSignInValidator) : IAuthService
+    IValidator<DoctorSignInInput> doctorSignInValidator,
+    IAuditLog audit) : IAuthService
 {
     // A locked account gets the same answer as wrong credentials, so the lock state is not disclosed
     // before the user has proven who they are; the lockout rule itself is stated for everyone.
@@ -97,6 +99,8 @@ internal sealed class AuthService(
             // Registered concurrently between the check and the insert.
             throw new BusinessRuleException(NationalIdTaken, ex);
         }
+
+        audit.Record(AuditEvent.PatientRegistered, AccountRole.Patient);
     }
 
     private async Task<UserSession> SignInAsync(
@@ -109,6 +113,7 @@ internal sealed class AuthService(
         if (account is null)
         {
             passwordHasher.SimulateVerification(password);
+            audit.Record(AuditEvent.SignInFailed, role);
             throw new BusinessRuleException(invalidMessage);
         }
 
@@ -118,6 +123,7 @@ internal sealed class AuthService(
             // Same answer and about the same cost as a wrong password; nothing is written, so the
             // lock neither grows nor ends early.
             passwordHasher.SimulateVerification(password);
+            audit.Record(AuditEvent.SignInLocked, role);
             throw new BusinessRuleException(invalidMessage);
         }
 
@@ -130,6 +136,7 @@ internal sealed class AuthService(
                 LoginPolicy.MaxFailedAttempts,
                 now + LoginPolicy.LockoutDuration,
                 cancellationToken).ConfigureAwait(false);
+            audit.Record(AuditEvent.SignInFailed, role);
             throw new BusinessRuleException(invalidMessage);
         }
 
@@ -147,8 +154,17 @@ internal sealed class AuthService(
             .ConfigureAwait(false);
         if (!recorded)
         {
+            // A concurrent failure locked the account (or its password changed) after it was read.
+            audit.Record(AuditEvent.SignInLocked, role);
             throw new BusinessRuleException(invalidMessage);
         }
+
+        if (newHash is not null)
+        {
+            audit.Record(AuditEvent.PasswordUpgraded, role);
+        }
+
+        audit.Record(AuditEvent.SignInSucceeded, role);
 
         return new UserSession(role, account.Id, account.FullName, NationalIdNumber.Mask(account.NationalId));
     }
