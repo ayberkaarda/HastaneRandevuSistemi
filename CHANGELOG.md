@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Doctor search by name and branch, a month or week calendar of free and full days per doctor and a first free slot
+  finder, all computed in the business layer (leave days, full days and the 90 day window are tested at their limits).
 - Rescheduling: a patient moves their own appointment to a free slot of the same doctor in one conditional update
   (no cancel and rebook), until `Appointments:RescheduleCutoffHours` before the start (default 2, validated at
   startup). Races for the new slot between moves and bookings are tested on SQL Server.

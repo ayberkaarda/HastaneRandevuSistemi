@@ -9,6 +9,8 @@ Biçim [Keep a Changelog](https://keepachangelog.com/tr-TR/1.1.0/) temel alınar
 
 ### Eklenenler
 
+- Ada ve branşa göre doktor arama, doktor başına boş ve dolu günleri gösteren ay/hafta takvimi ve ilk boş randevu
+  bulucu; hepsi iş katmanında hesaplanır (izin günü, dolu gün ve 90 günlük ufuk sınırlarında test edilir).
 - Erteleme: hasta kendi randevusunu aynı doktorun boş bir dilimine tek bir koşullu güncellemeyle taşır (iptal edip
   yeniden almadan); başlangıca `Appointments:RescheduleCutoffHours` saat kalana kadar (varsayılan 2, açılışta
   doğrulanır). Yeni dilim için erteleme ve randevu alma yarışları SQL Server'da test edilir.
