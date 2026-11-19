@@ -46,6 +46,8 @@ public sealed class AvailabilityTests
     [InlineData("IŞIK", null, new[] { 4 })]
     [InlineData(null, "kardiyoloji", new[] { 1, 4 })]
     [InlineData(null, "Ortopedi", new[] { 3 })]
+    [InlineData(null, "ORTOPEDI", new[] { 3 })]
+    [InlineData("ERNEK", null, new int[0])]
     [InlineData("can", "Kardiyoloji", new int[0])]
     [InlineData("dr.", "Dahiliye", new[] { 2 })]
     public async Task Search_FiltersByNameAndBranchWithTurkishCaseRules(string? name, string? branch, int[] expected)

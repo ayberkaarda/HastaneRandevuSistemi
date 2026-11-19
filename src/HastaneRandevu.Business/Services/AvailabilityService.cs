@@ -85,8 +85,8 @@ internal sealed class AvailabilityService(
         var wanted = Normalize(branch);
         var all = await doctors.GetAllAsync(cancellationToken).ConfigureAwait(false);
         return all
-            .Where(d => query.Length == 0 || Turkish.IndexOf(d.FullName, query, CompareOptions.IgnoreCase) >= 0)
-            .Where(d => wanted.Length == 0 || Turkish.Compare(d.Branch?.Trim() ?? string.Empty, wanted, CompareOptions.IgnoreCase) == 0)
+            .Where(d => query.Length == 0 || Contains(d.FullName, query))
+            .Where(d => wanted.Length == 0 || SameText(d.Branch?.Trim() ?? string.Empty, wanted))
             .ToList();
     }
 
@@ -162,6 +162,16 @@ internal sealed class AvailabilityService(
             cancellationToken).ConfigureAwait(false);
         return new SlotPlan(schedule, [.. booked], now, today, windowEnd, empty: false);
     }
+
+    // Turkish rules first (i/İ, ı/I), and the invariant ones too, so "ORTOPEDI" typed on a keyboard
+    // without Turkish letters still finds "Ortopedi".
+    private static bool Contains(string text, string query) =>
+        Turkish.IndexOf(text, query, CompareOptions.IgnoreCase) >= 0
+        || CultureInfo.InvariantCulture.CompareInfo.IndexOf(text, query, CompareOptions.IgnoreCase) >= 0;
+
+    private static bool SameText(string text, string wanted) =>
+        Turkish.Compare(text, wanted, CompareOptions.IgnoreCase) == 0
+        || CultureInfo.InvariantCulture.CompareInfo.Compare(text, wanted, CompareOptions.IgnoreCase) == 0;
 
     private static string Normalize(string? value)
     {
