@@ -1,10 +1,12 @@
 using HastaneRandevu.Business.Services;
+using HastaneRandevu.Domain.Entities;
 using HastaneRandevu.UI.Infrastructure;
+using HastaneRandevu.UI.Theming;
 
 namespace HastaneRandevu.UI
 {
     /// <summary>Doctor panel: the appointments made with the signed-in doctor and the way to the own schedule.</summary>
-    public partial class DoktorForm : Form
+    public sealed class DoktorForm : AppDialog
     {
         private readonly IAppointmentService _appointments;
         private readonly IExportService _exports;
@@ -14,7 +16,21 @@ namespace HastaneRandevu.UI
         private readonly ExclusiveOperation _export = new();
         private readonly RequestSequence _listRequests = new();
 
+        private readonly Label labelDoktor = new() { Name = nameof(labelDoktor), AutoSize = true, UseMnemonic = false, TextAlign = ContentAlignment.MiddleRight };
+        private readonly ThemedListBox listBoxRandevular = new() { Name = nameof(listBoxRandevular), AccessibleName = "Randevular" };
+        private readonly ThemedButton buttonRandevuIptal = FormLayout.Button(nameof(buttonRandevuIptal), "Randevuyu iptal et", ButtonKind.Danger);
+        private readonly Label labelOzet = FormLayout.Hint(string.Empty);
+        private readonly DateTimePicker dateTimePickerAjanda = FormLayout.DatePicker(nameof(dateTimePickerAjanda));
+        private readonly ThemedButton buttonAjanda = FormLayout.Button(nameof(buttonAjanda), "Ajandayı dışa aktar", ButtonKind.Secondary, Glyphs.Download);
+        private readonly ThemedButton buttonCalismaProgrami = FormLayout.Button(nameof(buttonCalismaProgrami), "Çalışma programım", ButtonKind.Secondary, Glyphs.Schedule);
+
         public DoktorForm(IAppointmentService appointments, IExportService exports, IFormFactory forms, UserSession session)
+            : base(
+                "Doktor paneli",
+                "Randevularınız, günlük ajandanız ve çalışma programınız.",
+                Glyphs.Agenda,
+                new Size(1000, 620),
+                new Size(860, 540))
         {
             ArgumentNullException.ThrowIfNull(appointments);
             ArgumentNullException.ThrowIfNull(exports);
@@ -25,16 +41,15 @@ namespace HastaneRandevu.UI
             _exports = exports;
             _forms = forms;
             _session = session;
-            Prompts = new MessageBoxPrompts(this);
 
-            InitializeComponent();
-            Icon = AppAssets.Icon;
-            labelDoktor.Text = session.DisplayName + " Hoş geldiniz!";
+            BuildLayout();
+            labelDoktor.Text = session.DisplayName + Environment.NewLine + "Doktor hesabı";
+
+            Load += async (_, _) => await LoadAsync();
+            buttonRandevuIptal.Click += async (_, _) => await CancelAsync();
+            buttonCalismaProgrami.Click += async (_, _) => await OpenScheduleAsync();
+            buttonAjanda.Click += async (_, _) => await ExportAgendaAsync();
         }
-
-        /// <summary>Confirmation and information dialogs; replaced in tests so no window opens.</summary>
-        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
-        internal IUserPrompts Prompts { get; set; }
 
         /// <summary>Loads the doctor's appointments; only the latest of overlapping loads is shown.</summary>
         internal Task LoadAsync() => this.RunAsync(RefreshAppointmentsAsync);
@@ -89,18 +104,26 @@ namespace HastaneRandevu.UI
         private async Task RefreshAppointmentsAsync()
         {
             var request = _listRequests.Next();
-            var appointments = await _appointments.GetMyAppointmentsAsync(_session);
-            if (_listRequests.IsLatest(request) && !IsDisposed)
+            listBoxRandevular.IsLoading = true;
+            try
             {
-                listBoxRandevular.ReplaceItems(appointments.Select(a => new DoctorAppointmentItem(a)));
+                var appointments = await _appointments.GetMyAppointmentsAsync(_session);
+                if (_listRequests.IsLatest(request) && !IsDisposed)
+                {
+                    listBoxRandevular.ReplaceItems(appointments.Select(a => new DoctorAppointmentItem(a)));
+                    labelOzet.Text = appointments.Count == 0 ? string.Empty : $"{appointments.Count} aktif randevu";
+                }
+            }
+            finally
+            {
+                if (_listRequests.IsLatest(request))
+                {
+                    listBoxRandevular.IsLoading = false;
+                }
             }
         }
 
-        private async void DoktorForm_Load(object? sender, EventArgs e) => await LoadAsync();
-
-        private async void buttonRandevuIptal_Click(object? sender, EventArgs e) => await CancelAsync();
-
-        private async void buttonCalismaProgrami_Click(object? sender, EventArgs e)
+        private async Task OpenScheduleAsync()
         {
             using (var schedule = _forms.Create<CalismaProgramiForm>(_session))
             {
@@ -111,8 +134,50 @@ namespace HastaneRandevu.UI
             await LoadAsync();
         }
 
-        private async void buttonAjanda_Click(object? sender, EventArgs e) => await ExportAgendaAsync();
+        private void BuildLayout()
+        {
+            Name = nameof(DoktorForm);
+            var p = Theme.Current;
+            labelDoktor.Font = Theme.Fonts.Body;
+            labelDoktor.ForeColor = p.TextSecondary;
+            SetHeaderAside(labelDoktor);
 
-        private void buttonCikis_Click(object? sender, EventArgs e) => Close();
+            // The appointment list with its action.
+            listBoxRandevular.Describe = item => item is DoctorAppointmentItem appointment
+                ? new ListRow(appointment.Appointment.PatientName, appointment.Appointment.StartsAt.ToString("d MMMM yyyy dddd, HH:mm", DisplayFormat.Turkish), RowTone.Accent)
+                : new ListRow(item.ToString() ?? string.Empty);
+            listBoxRandevular.EmptyText = "Sizinle alınmış aktif bir randevu yok.";
+            buttonRandevuIptal.Margin = Padding.Empty;
+            labelOzet.Name = nameof(labelOzet);
+            labelOzet.Margin = new Padding(Spacing.M, 0, 0, 0);
+            var actions = FormLayout.Bar("listActions", (buttonRandevuIptal, false), (labelOzet, true));
+            actions.Margin = new Padding(0, Spacing.M, 0, 0);
+            var listCard = FormLayout.Card("appointmentsCard", "Randevular", FormLayout.Page("appointmentsPage", (listBoxRandevular, true), (actions, false)));
+            listCard.Margin = Padding.Empty;
+
+            // Agenda export of one day.
+            var dayField = FormLayout.Field("&Gün", dateTimePickerAjanda);
+            dayField.Margin = new Padding(0, 0, 0, Spacing.S);
+            buttonAjanda.Margin = new Padding(0, 0, 0, 0);
+            var agendaHint = FormLayout.Hint("Seçilen günün randevuları yazdırılabilir bir HTML sayfası olarak kaydedilir; kimlik numaraları maskelenir.");
+            agendaHint.Name = "agendaHint";
+            agendaHint.Margin = new Padding(0, Spacing.S, 0, 0);
+            var agendaCard = FormLayout.Card("agendaCard", "Günlük ajanda", FormLayout.Stack("agendaStack", dayField, buttonAjanda, agendaHint), fill: false);
+
+            // The way to the working schedule.
+            var scheduleHint = FormLayout.Hint("Çalışma günlerinizi, saatlerinizi ve izin günlerinizi düzenleyin. Mevcut randevular değişmez.");
+            scheduleHint.Name = "scheduleHint";
+            scheduleHint.Margin = new Padding(0, 0, 0, Spacing.M);
+            buttonCalismaProgrami.Margin = Padding.Empty;
+            var scheduleCard = FormLayout.Card("scheduleCard", "Çalışma programı", FormLayout.Stack("scheduleStack", scheduleHint, buttonCalismaProgrami), fill: false);
+            scheduleCard.Margin = Padding.Empty;
+
+            var right = FormLayout.Page("rightColumn", (agendaCard, false), (scheduleCard, false));
+            Content.Controls.Add(FormLayout.Columns("layout", listCard, 60, right));
+
+            SetFooterNote("İptal etmek için listeden bir randevu seçin.");
+            SetFooterButtons(CreateCloseButton("buttonCikis", "Çıkış"));
+            FinishLayout();
+        }
     }
 }
